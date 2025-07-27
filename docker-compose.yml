@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  web-scraper:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+    environment:
+      - PYTHONPATH=/app
+      - CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - MAX_PAGES=${MAX_PAGES:-100}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: unless-stopped
+
+networks:
+  scraper-network:
+    driver: bridge
