@@ -482,6 +482,13 @@ PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com 
    # Edit .env with your API keys
    ```
 
+4. **Fast Startup (Pre-built Models)**:
+   ```bash
+   # Models are pre-downloaded during Docker build
+   # No waiting for model downloads on startup
+   docker-compose up --build -d
+   ```
+
 ## 🏗️ Architecture
 
 ```
