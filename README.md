@@ -41,7 +41,11 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
 
 3. **Run with Docker Compose**:
    ```bash
+   # Production (default - recommended for deployment)
    docker-compose up --build
+   
+   # Development (for local testing)
+   docker-compose -f docker-compose.dev.yml up --build
    ```
 
 ### Method 2: Direct Installation
@@ -444,6 +448,38 @@ PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com 
    --max-workers 5    # Conservative for slower systems
    --max-workers 20   # Aggressive for fast systems
    --max-workers 50   # Very aggressive (use with caution)
+   ```
+
+### Deployment Issues
+
+1. **Bad Gateway Error**:
+   ```bash
+   # Check if API is running
+   curl https://your-domain.com/health
+   
+   # Check Docker logs
+   docker-compose logs -f
+   
+   # Restart with production config (default)
+   docker-compose up --build -d
+   ```
+
+2. **Memory/Resource Limits**:
+   ```bash
+   # Use production config (default) with resource limits
+   docker-compose up -d
+   
+   # Reduce scraping parameters
+   curl -X POST "https://your-domain.com/scrape" \
+     -H "Content-Type: application/json" \
+     -d '{"url":"https://example.com","max_pages":10,"max_workers":5}'
+   ```
+
+3. **Environment Variables**:
+   ```bash
+   # Ensure .env file is properly set
+   cp .env.example .env
+   # Edit .env with your API keys
    ```
 
 ## 🏗️ Architecture
