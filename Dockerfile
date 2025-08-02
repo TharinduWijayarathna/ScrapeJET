@@ -47,14 +47,7 @@ COPY . .
 RUN mkdir -p /app/data/raw /app/data/processed /app/data/vectorstore
 
 # Pre-download ONNX models during build time
-RUN python -c "
-import os
-os.environ['PYTHONPATH'] = '/app'
-from src.rag.vector_store import VectorStore
-print('Pre-downloading ONNX models...')
-vector_store = VectorStore()
-print('✓ ONNX models downloaded successfully')
-"
+RUN PYTHONPATH=/app python download_models.py
 
 # Expose port
 EXPOSE 8000
