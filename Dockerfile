@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Create non-root user for security
+RUN groupadd -r scraper && useradd -r -g scraper scraper
+
 # Install Chrome and ChromeDriver
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
@@ -46,8 +49,11 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/data/raw /app/data/processed /app/data/vectorstore
 
-# Pre-download ONNX models during build time
-RUN PYTHONPATH=/app python download_models.py
+# Set ownership to non-root user
+RUN chown -R scraper:scraper /app
+
+# Switch to non-root user
+USER scraper
 
 # Expose port
 EXPOSE 8000

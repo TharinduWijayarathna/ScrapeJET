@@ -77,6 +77,8 @@ docker-dev-logs:
 	@echo "Showing development Docker logs..."
 	docker-compose -f docker-compose.dev.yml logs -f
 
+
+
 # Clean up generated files
 clean:
 	@echo "Cleaning up generated files..."

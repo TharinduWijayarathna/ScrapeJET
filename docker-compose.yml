@@ -1,13 +1,10 @@
-version: '3.8'
-
 services:
   web-scraper:
     build: .
     ports:
-      - "8000:8000"
+      - "80:8000"
     volumes:
-      - ./data:/app/data
-      - ./src:/app/src
+      - scraper_data:/app/data
     environment:
       - PYTHONPATH=/app
       - CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
@@ -15,14 +12,38 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
-      - MAX_PAGES=${MAX_PAGES:-100}
+      - MAX_PAGES=${MAX_PAGES:-50}
       - CHUNK_SIZE=${CHUNK_SIZE:-1000}
-      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
     env_file:
       - .env
     networks:
       - scraper-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  scraper_data:
+    driver: local
 
 networks:
   scraper-network:

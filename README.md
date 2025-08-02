@@ -39,13 +39,10 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
    # Edit .env with your API keys
    ```
 
-3. **Run with Docker Compose**:
+3. **Deploy to production**:
    ```bash
-   # Production (default - recommended for deployment)
-   docker-compose up --build
-   
-   # Development (for local testing)
-   docker-compose -f docker-compose.dev.yml up --build
+   # Push and go - production ready!
+   docker-compose up --build -d
    ```
 
 ### Method 2: Direct Installation
