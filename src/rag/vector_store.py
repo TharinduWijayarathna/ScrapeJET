@@ -10,7 +10,6 @@ from loguru import logger
 # Disable telemetry for sentence-transformers and huggingface
 os.environ["SENTENCE_TRANSFORMERS_HOME"] = "/tmp/sentence_transformers"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 
 class VectorStore:

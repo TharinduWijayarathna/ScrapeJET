@@ -17,7 +17,6 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
       - HF_HUB_DISABLE_TELEMETRY=1
-      - TRANSFORMERS_OFFLINE=1
       - SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers
     env_file:
       - .env
