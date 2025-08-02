@@ -13,7 +13,18 @@ class VectorStore:
     
     def __init__(self, persist_directory: str = "data/vectorstore"):
         self.persist_directory = Path(persist_directory)
-        self.persist_directory.mkdir(parents=True, exist_ok=True)
+        # Ensure the directory exists and is writable
+        try:
+            self.persist_directory.mkdir(parents=True, exist_ok=True)
+            # Set proper permissions for the directory
+            os.chmod(self.persist_directory, 0o755)
+        except PermissionError as e:
+            logger.warning(f"Permission issue with {self.persist_directory}: {e}")
+            # Try to use a fallback directory
+            fallback_dir = Path("/tmp/vectorstore")
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+            self.persist_directory = fallback_dir
+            logger.info(f"Using fallback directory: {self.persist_directory}")
         
         # Initialize ChromaDB
         self.client = chromadb.PersistentClient(
