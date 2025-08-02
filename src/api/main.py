@@ -57,17 +57,21 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
     vector_store = VectorStore()
     
     # Initialize LLM interface
-    if llm_provider == "openai":
-        llm_interface = OpenAIInterface(model=llm_model or "gpt-3.5-turbo")
-    elif llm_provider == "bedrock":
-        llm_interface = BedrockInterface(model_id=llm_model or "anthropic.claude-v2")
-    else:
-        raise ValueError(f"Unsupported LLM provider: {llm_provider}")
-    
-    # Initialize RAG system
-    rag_system = RAGSystem(vector_store, llm_interface)
-    
-    logger.info(f"RAG system initialized with {llm_provider}")
+    try:
+        if llm_provider == "openai":
+            llm_interface = OpenAIInterface(model=llm_model or "gpt-3.5-turbo")
+        elif llm_provider == "bedrock":
+            llm_interface = BedrockInterface(model_id=llm_model or "anthropic.claude-v2")
+        else:
+            raise ValueError(f"Unsupported LLM provider: {llm_provider}")
+        
+        # Initialize RAG system
+        rag_system = RAGSystem(vector_store, llm_interface)
+        logger.info(f"RAG system initialized with {llm_provider}")
+    except Exception as e:
+        logger.warning(f"Could not initialize LLM system: {e}")
+        logger.info("Continuing without RAG functionality - scraping only")
+        rag_system = None
 
 
 @asynccontextmanager
@@ -75,7 +79,7 @@ async def lifespan(app: FastAPI):
     """Lifespan events for FastAPI"""
     # Startup
     try:
-        initialize_rag_system()
+        # Don't initialize RAG system at startup - let it be initialized on first scrape
         logger.info("Application started successfully")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
@@ -159,9 +163,12 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
             scraper.save_to_markdown(data, filename)
             saved_files['markdown'] = str(scraper.output_dir / f"{filename}.md")
         
-        # Add to RAG system
+        # Add to RAG system if available
         current_data = data
-        rag_system.add_documents(data)
+        if rag_system is not None:
+            rag_system.add_documents(data)
+        else:
+            logger.info("RAG system not available - skipping document addition")
         
         return ScrapeResponse(
             message=f"Successfully scraped {len(data)} pages from {request.url}",
