@@ -30,21 +30,21 @@ install:
 test:
 	@echo "Running tests..."
 	@echo "Testing scraper import..."
-	PYTHONPATH=/home/thari/office/web-scraper python -c "from src.scraper.universal_scraper import UniversalScraper; print('✓ Scraper import successful')"
+	PYTHONPATH=. python -c "from src.scraper.universal_scraper import UniversalScraper; print('✓ Scraper import successful')"
 	@echo "Testing CLI help..."
-	PYTHONPATH=/home/thari/office/web-scraper python src/cli.py --help > /dev/null && echo "✓ CLI help successful"
+	PYTHONPATH=. python src/cli.py --help > /dev/null && echo "✓ CLI help successful"
 	@echo "Testing basic scrape..."
-	PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://httpbin.org --max-pages 2 --max-workers 3
+	PYTHONPATH=. python src/cli.py https://httpbin.org --max-pages 2 --max-workers 3
 	@echo ""
 	@echo "Running multithreading tests..."
-	PYTHONPATH=/home/thari/office/web-scraper python test_multithreading.py
+	PYTHONPATH=. python test_multithreading.py
 	@echo ""
 	@echo "✓ All tests completed successfully!"
 
 # Quick test scrape
 scrape:
 	@echo "Running quick test scrape..."
-	PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://httpbin.org --max-pages 3 --max-workers 5
+	PYTHONPATH=. python src/cli.py https://httpbin.org --max-pages 3 --max-workers 5
 
 # Docker commands
 docker-build:
@@ -70,9 +70,9 @@ clean:
 # Development server
 dev-server:
 	@echo "Starting development server..."
-	PYTHONPATH=/home/thari/office/web-scraper python -m src.api.main
+	PYTHONPATH=. python -m src.api.main
 
 # Interactive scraping
 interactive:
 	@echo "Starting interactive scraping..."
-	PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://httpbin.org --interactive 
+	PYTHONPATH=. python src/cli.py https://httpbin.org --interactive 

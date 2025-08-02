@@ -115,10 +115,10 @@ make docker-run
 source venv/bin/activate
 
 # Basic scraping
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com
+PYTHONPATH=. python src/cli.py https://example.com
 
 # Scrape with multithreading
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-workers 20
+PYTHONPATH=. python src/cli.py https://example.com --max-workers 20
 ```
 
 ### Interactive Mode
@@ -169,38 +169,38 @@ make interactive
 #### Basic Scraping
 ```bash
 # Simple scraping
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com
+PYTHONPATH=. python src/cli.py https://example.com
 
 # Limit pages
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-pages 10
+PYTHONPATH=. python src/cli.py https://example.com --max-pages 10
 
 # Use multithreading for faster scraping
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-workers 20
+PYTHONPATH=. python src/cli.py https://example.com --max-workers 20
 
 # Choose output format
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --output-format json
+PYTHONPATH=. python src/cli.py https://example.com --output-format json
 ```
 
 #### RAG Features
 ```bash
 # Interactive querying
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --interactive
+PYTHONPATH=. python src/cli.py https://example.com --interactive
 
 # Single query
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --query "What products do they sell?"
+PYTHONPATH=. python src/cli.py https://example.com --query "What products do they sell?"
 
 # Use different LLM providers
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --llm-provider openai --interactive
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --llm-provider bedrock --interactive
+PYTHONPATH=. python src/cli.py https://example.com --llm-provider openai --interactive
+PYTHONPATH=. python src/cli.py https://example.com --llm-provider bedrock --interactive
 ```
 
 #### Advanced Options
 ```bash
 # Debug mode
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --log-level DEBUG
+PYTHONPATH=. python src/cli.py https://example.com --log-level DEBUG
 
 # Custom LLM model
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --llm-model gpt-4 --interactive
+PYTHONPATH=. python src/cli.py https://example.com --llm-model gpt-4 --interactive
 ```
 
 ### Available Options
@@ -489,7 +489,7 @@ src/
 
 ```bash
 # Manual testing
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://httpbin.org --max-pages 1
+PYTHONPATH=. python src/cli.py https://httpbin.org --max-pages 1
 
 # API testing
 curl http://localhost:8000/health
@@ -509,7 +509,7 @@ make docker-run
 
 # 3. Manual workflow
 source venv/bin/activate
-export PYTHONPATH=/home/thari/office/web-scraper
+export PYTHONPATH=.
 python src/cli.py https://example.com --max-pages 20 --max-workers 15
 
 # 4. Interactive querying
