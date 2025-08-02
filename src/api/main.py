@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,7 +40,7 @@ class ScrapeResponse(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
-    context: List[Dict[str, any]]
+    context: List[Dict[str, Any]]
 
 
 # Initialize FastAPI app
