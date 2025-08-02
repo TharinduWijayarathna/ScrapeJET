@@ -1,5 +1,7 @@
 import asyncio
 import re
+import threading
+import concurrent.futures
 from typing import Dict, List, Optional, Any, Set
 from urllib.parse import urljoin, urlparse, parse_qs
 from bs4 import BeautifulSoup
@@ -8,17 +10,21 @@ from .base_scraper import BaseScraper
 
 
 class UniversalScraper(BaseScraper):
-    """Universal scraper that can handle any website"""
+    """Universal scraper that can handle any website with multithreading support"""
     
-    def __init__(self, base_url: str, output_dir: str = "data/raw", max_pages: int = 100):
+    def __init__(self, base_url: str, output_dir: str = "data/raw", max_pages: int = 100, max_workers: int = 10):
         super().__init__(base_url, output_dir)
         self.max_pages = max_pages
+        self.max_workers = max_workers
         self.pagination_patterns = [
             r'page=(\d+)',
             r'p=(\d+)',
             r'page/(\d+)',
             r'(\d+)/?$'
         ]
+        self._lock = threading.Lock()
+        self._visited = set()
+        self._all_data = []
         
     def detect_pagination(self, soup: BeautifulSoup, current_url: str) -> List[str]:
         """Detect pagination links"""
@@ -214,56 +220,101 @@ class UniversalScraper(BaseScraper):
         
         return page_data
     
+    def _scrape_single_page(self, url: str) -> Optional[Dict[str, Any]]:
+        """Scrape a single page (thread-safe)"""
+        with self._lock:
+            if url in self._visited:
+                return None
+            self._visited.add(url)
+        
+        logger.info(f"Scraping page: {url}")
+        
+        # Try different methods to get page content
+        content = None
+        
+        # First try with requests
+        content = self.get_page_content(url)
+        
+        # If that fails, try with Selenium
+        if not content:
+            content = self.get_page_with_selenium(url)
+        
+        # If that fails, try with Playwright (async, but we'll handle this differently)
+        if not content:
+            # For now, skip Playwright in threaded mode to avoid complexity
+            logger.warning(f"Failed to get content from {url}")
+            return None
+        
+        if content:
+            soup = BeautifulSoup(content, 'html.parser')
+            page_data = self.parse_page(soup, url)
+            
+            with self._lock:
+                self._all_data.append(page_data)
+            
+            return page_data
+        else:
+            logger.warning(f"Failed to get content from {url}")
+            return None
+    
+    def _get_urls_to_visit(self, url: str) -> List[str]:
+        """Get URLs to visit from a single page"""
+        content = self.get_page_content(url)
+        if not content:
+            return []
+        
+        soup = BeautifulSoup(content, 'html.parser')
+        new_links = self.extract_links(soup, url)
+        pagination_links = self.detect_pagination(soup, url)
+        
+        return new_links + pagination_links
+    
     async def scrape_site(self) -> List[Dict[str, Any]]:
-        """Main scraping method with pagination support"""
-        all_data = []
+        """Main scraping method with multithreading support"""
+        logger.info(f"Starting multithreaded scraping with {self.max_workers} workers")
+        
+        # Initialize with base URL
         urls_to_visit = [self.base_url]
-        visited = set()
+        self._visited.clear()
+        self._all_data.clear()
         
         page_count = 0
         
-        while urls_to_visit and page_count < self.max_pages:
-            current_url = urls_to_visit.pop(0)
-            
-            if current_url in visited:
-                continue
-            
-            visited.add(current_url)
-            page_count += 1
-            
-            logger.info(f"Scraping page {page_count}: {current_url}")
-            
-            # Try different methods to get page content
-            content = None
-            
-            # First try with requests
-            content = self.get_page_content(current_url)
-            
-            # If that fails, try with Selenium
-            if not content:
-                content = self.get_page_with_selenium(current_url)
-            
-            # If that fails, try with Playwright
-            if not content:
-                content = await self.get_page_with_playwright(current_url)
-            
-            if content:
-                soup = BeautifulSoup(content, 'html.parser')
-                page_data = self.parse_page(soup, current_url)
-                all_data.append(page_data)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            while urls_to_visit and page_count < self.max_pages:
+                # Get current batch of URLs to process
+                current_batch = urls_to_visit[:self.max_workers]
+                urls_to_visit = urls_to_visit[self.max_workers:]
                 
-                # Extract new URLs to visit
-                new_links = self.extract_links(soup, current_url)
-                pagination_links = self.detect_pagination(soup, current_url)
+                # Submit scraping tasks
+                future_to_url = {
+                    executor.submit(self._scrape_single_page, url): url 
+                    for url in current_batch
+                }
                 
-                # Add new URLs to visit list
-                for link in new_links + pagination_links:
-                    if link not in visited and link not in urls_to_visit:
-                        urls_to_visit.append(link)
-            else:
-                logger.warning(f"Failed to get content from {current_url}")
+                # Process completed tasks
+                for future in concurrent.futures.as_completed(future_to_url):
+                    url = future_to_url[future]
+                    try:
+                        page_data = future.result()
+                        if page_data:
+                            page_count += 1
+                            
+                            # Get new URLs from this page
+                            new_urls = self._get_urls_to_visit(url)
+                            for new_url in new_urls:
+                                with self._lock:
+                                    if new_url not in self._visited and new_url not in urls_to_visit:
+                                        urls_to_visit.append(new_url)
+                    
+                    except Exception as e:
+                        logger.error(f"Error scraping {url}: {e}")
+                
+                # Log progress
+                logger.info(f"Processed {page_count} pages, {len(urls_to_visit)} URLs remaining")
         
-        return all_data
+        logger.info(f"Multithreaded scraping completed. Processed {len(self._all_data)} pages.")
+        return self._all_data
     
     def scrape_and_save(self, output_format: str = "both") -> Dict[str, str]:
         """Scrape site and save data"""
