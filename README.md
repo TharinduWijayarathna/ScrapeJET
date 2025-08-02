@@ -5,6 +5,7 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
 ## 🚀 Features
 
 - **Universal Web Scraping**: Scrape any website with intelligent content extraction
+- **Multithreaded Scraping**: Parallel processing for faster scraping with configurable worker threads
 - **Pagination Support**: Automatically detect and handle pagination
 - **Multiple Scraping Methods**: Uses requests, Selenium, and Playwright for different site types
 - **Product Detection**: Automatically detects and extracts product information
@@ -83,18 +84,18 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
 # Activate virtual environment
 source venv/bin/activate
 
-# Basic scraping
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com
+# Basic scraping (replace with your actual project path)
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com
 
 # Scrape with options
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --max-pages 50 --output-format json
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-pages 50 --output-format json
 ```
 
 ### Interactive Mode
 
 ```bash
 # Scrape and start interactive querying
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --interactive
 
 # Example queries:
 # > What products are available?
@@ -109,35 +110,38 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --interact
 #### Basic Scraping
 ```bash
 # Simple scraping
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com
 
 # Limit pages
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --max-pages 10
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-pages 10
+
+# Use multithreading for faster scraping
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-workers 20
 
 # Choose output format
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --output-format json
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --output-format json
 ```
 
 #### RAG Features
 ```bash
 # Interactive querying
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --interactive
 
 # Single query
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --query "What products do they sell?"
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --query "What products do they sell?"
 
 # Use different LLM providers
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-provider openai --interactive
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-provider bedrock --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --llm-provider openai --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --llm-provider bedrock --interactive
 ```
 
 #### Advanced Options
 ```bash
 # Debug mode
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --log-level DEBUG
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --log-level DEBUG
 
 # Custom LLM model
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-model gpt-4 --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --llm-model gpt-4 --interactive
 ```
 
 ### Available Options
@@ -145,6 +149,7 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-mod
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--max-pages` | Maximum pages to scrape | 100 |
+| `--max-workers` | Maximum number of worker threads for parallel scraping | 10 |
 | `--output-format` | Output format (json/markdown/both) | both |
 | `--llm-provider` | LLM provider (openai/bedrock) | openai |
 | `--llm-model` | Specific LLM model | gpt-3.5-turbo |
@@ -160,7 +165,7 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-mod
 source venv/bin/activate
 
 # Start API server
-PYTHONPATH=/path/to/web-scraper python -m src.api.main
+PYTHONPATH=/home/thari/office/web-scraper python -m src.api.main
 ```
 
 #### API Endpoints
@@ -172,6 +177,7 @@ PYTHONPATH=/path/to/web-scraper python -m src.api.main
      -d '{
        "url": "https://example.com",
        "max_pages": 100,
+       "max_workers": 10,
        "output_format": "both"
      }'
    ```
@@ -273,7 +279,7 @@ LOG_LEVEL=INFO
 ### E-commerce Scraping
 ```bash
 # Scrape product catalog
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://shop.example.com --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://shop.example.com --interactive
 
 # Example queries:
 # > What products are available under $50?
@@ -285,7 +291,7 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://shop.example.com --int
 ### Business Website Analysis
 ```bash
 # Scrape company website
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://company.example.com --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://company.example.com --interactive
 
 # Example queries:
 # > What services does this company offer?
@@ -297,7 +303,7 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://company.example.com --
 ### News/Blog Analysis
 ```bash
 # Scrape news site
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://news.example.com --interactive
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://news.example.com --interactive
 
 # Example queries:
 # > What are the main topics covered?
@@ -312,10 +318,10 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://news.example.com --int
 
 #### 1. **ModuleNotFoundError: No module named 'src'**
 ```bash
-# Solution: Set PYTHONPATH
-export PYTHONPATH=/path/to/web-scraper
+# Solution: Set PYTHONPATH to your actual project directory
+export PYTHONPATH=/home/thari/office/web-scraper
 # or
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com
 ```
 
 #### 2. **ModuleNotFoundError: No module named 'loguru'**
@@ -356,7 +362,7 @@ echo "OPENAI_API_KEY=your_key_here" >> .env
 
 ```bash
 # Enable debug logging
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --log-level DEBUG
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --log-level DEBUG
 ```
 
 ### Performance Issues
@@ -371,6 +377,14 @@ PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --log-leve
    ```bash
    # Add delays (implemented in scraper)
    # Consider using proxies for high-volume scraping
+   ```
+
+3. **Multithreading Performance**:
+   ```bash
+   # Adjust worker count based on your system
+   --max-workers 5    # Conservative for slower systems
+   --max-workers 20   # Aggressive for fast systems
+   --max-workers 50   # Very aggressive (use with caution)
    ```
 
 ## 🏗️ Architecture
@@ -416,7 +430,7 @@ src/
 
 ```bash
 # Manual testing
-PYTHONPATH=/path/to/web-scraper python src/cli.py https://httpbin.org --max-pages 1
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://httpbin.org --max-pages 1
 
 # API testing
 curl http://localhost:8000/health
@@ -429,19 +443,29 @@ curl http://localhost:8000/health
 ```bash
 # 1. Set up environment
 source venv/bin/activate
-export PYTHONPATH=/path/to/web-scraper
+export PYTHONPATH=/home/thari/office/web-scraper
 
-# 2. Scrape a website
-python src/cli.py https://example.com/ --max-pages 20
+# 2. Scrape a website (with multithreading for speed)
+python src/cli.py https://example.com --max-pages 20 --max-workers 15
 
 # 3. Interactive querying
-python src/cli.py https://example.com/ --interactive
+python src/cli.py https://example.com --interactive
 
 # 4. Ask questions
 > What products do they sell?
 > What are their contact details?
 > What are the price ranges?
 > Do they have any special offers?
+```
+
+### Multithreading Performance Test
+
+```bash
+# Test performance with different worker counts
+PYTHONPATH=/home/thari/office/web-scraper python test_multithreading.py
+
+# This will test scraping with 1, 5, 10, and 20 workers
+# and show the performance improvement
 ```
 
 ### API Workflow
@@ -453,7 +477,7 @@ python -m src.api.main
 # 2. Scrape website
 curl -X POST "http://localhost:8000/scrape" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/", "max_pages": 10}'
+  -d '{"url": "https://example.com", "max_pages": 10}'
 
 # 3. Query the data
 curl -X POST "http://localhost:8000/query" \

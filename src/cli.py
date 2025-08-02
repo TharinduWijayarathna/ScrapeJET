@@ -25,11 +25,11 @@ def setup_logging(level: str = "INFO"):
     )
 
 
-async def scrape_website(url: str, max_pages: int = 100, output_format: str = "both"):
+async def scrape_website(url: str, max_pages: int = 100, output_format: str = "both", max_workers: int = 10):
     """Scrape a website"""
-    logger.info(f"Starting to scrape {url}")
+    logger.info(f"Starting to scrape {url} with {max_workers} workers")
     
-    scraper = UniversalScraper(base_url=url, max_pages=max_pages)
+    scraper = UniversalScraper(base_url=url, max_pages=max_pages, max_workers=max_workers)
     data = await scraper.scrape_site()
     
     # Save data
@@ -107,6 +107,7 @@ def main():
     parser = argparse.ArgumentParser(description="Web Scraper with RAG")
     parser.add_argument("url", help="URL to scrape")
     parser.add_argument("--max-pages", type=int, default=100, help="Maximum pages to scrape")
+    parser.add_argument("--max-workers", type=int, default=10, help="Maximum number of worker threads for parallel scraping")
     parser.add_argument("--output-format", choices=["json", "markdown", "both"], default="both", help="Output format")
     parser.add_argument("--llm-provider", choices=["openai", "bedrock"], default="openai", help="LLM provider")
     parser.add_argument("--llm-model", help="LLM model name")
@@ -125,7 +126,8 @@ def main():
             data, saved_files = await scrape_website(
                 args.url, 
                 args.max_pages, 
-                args.output_format
+                args.output_format,
+                args.max_workers
             )
             
             # Setup RAG if needed

@@ -21,6 +21,7 @@ from src.rag.llm_interface import OpenAIInterface, BedrockInterface, RAGSystem
 class ScrapeRequest(BaseModel):
     url: HttpUrl
     max_pages: int = 100
+    max_workers: int = 10
     output_format: str = "both"  # "json", "markdown", "both"
     llm_provider: str = "openai"  # "openai" or "bedrock"
     llm_model: Optional[str] = None
@@ -127,7 +128,8 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
         # Create scraper
         scraper = UniversalScraper(
             base_url=str(request.url),
-            max_pages=request.max_pages
+            max_pages=request.max_pages,
+            max_workers=request.max_workers
         )
         
         # Scrape the website
