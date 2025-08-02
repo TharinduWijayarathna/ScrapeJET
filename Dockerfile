@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     unzip \
     curl \
+    make \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
