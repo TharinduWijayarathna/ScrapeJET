@@ -4,6 +4,9 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV HF_HUB_DISABLE_TELEMETRY=1
+ENV TRANSFORMERS_OFFLINE=1
+ENV SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
