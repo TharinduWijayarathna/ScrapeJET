@@ -8,6 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 from loguru import logger
 import uvicorn
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import our modules
 import sys
@@ -53,11 +57,21 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
     """Initialize the RAG system"""
     global rag_system
     
-    # Initialize vector store
-    vector_store = VectorStore()
-    
-    # Initialize LLM interface
     try:
+        # Check if API key is available
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.error("OpenAI API key not found in environment variables")
+            rag_system = None
+            return
+        
+        logger.info(f"Initializing RAG system with {llm_provider}")
+        
+        # Initialize vector store
+        vector_store = VectorStore()
+        logger.info("Vector store initialized successfully")
+        
+        # Initialize LLM interface
         if llm_provider == "openai":
             llm_interface = OpenAIInterface(model=llm_model or "gpt-3.5-turbo")
         elif llm_provider == "bedrock":
@@ -65,11 +79,14 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider}")
         
+        logger.info("LLM interface initialized successfully")
+        
         # Initialize RAG system
         rag_system = RAGSystem(vector_store, llm_interface)
-        logger.info(f"RAG system initialized with {llm_provider}")
+        logger.info(f"RAG system initialized successfully with {llm_provider}")
+        
     except Exception as e:
-        logger.warning(f"Could not initialize LLM system: {e}")
+        logger.error(f"Could not initialize LLM system: {e}")
         logger.info("Continuing without RAG functionality - scraping only")
         rag_system = None
 
@@ -137,6 +154,9 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
         # Initialize RAG system if needed
         if rag_system is None:
             initialize_rag_system(request.llm_provider, request.llm_model)
+            # Check if initialization was successful
+            if rag_system is None:
+                logger.warning("RAG system initialization failed, continuing with scraping only")
         
         # Create scraper
         scraper = UniversalScraper(
