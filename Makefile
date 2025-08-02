@@ -1,7 +1,7 @@
 # Web Scraper Makefile
 # Simple commands for easy project management
 
-.PHONY: help install test scrape docker-build docker-run docker-stop clean
+.PHONY: help install test scrape docker-build docker-run docker-stop clean docker-dev
 
 # Default target
 help:
@@ -13,9 +13,10 @@ help:
 	@echo "  make scrape     - Quick test scrape (httpbin.org)"
 	@echo ""
 	@echo "Docker:"
-	@echo "  make docker-build - Build Docker image"
-	@echo "  make docker-run   - Run with Docker Compose"
+	@echo "  make docker-build - Build Docker image (production)"
+	@echo "  make docker-run   - Run production Docker setup"
 	@echo "  make docker-stop  - Stop Docker containers"
+	@echo "  make docker-dev   - Run development Docker setup"
 	@echo ""
 	@echo "Utility:"
 	@echo "  make clean      - Clean up generated files"
@@ -46,18 +47,35 @@ scrape:
 	@echo "Running quick test scrape..."
 	PYTHONPATH=. python src/cli.py https://httpbin.org --max-pages 3 --max-workers 5
 
-# Docker commands
+# Docker commands (Production by default)
 docker-build:
 	@echo "Building Docker image..."
 	docker-compose build
 
 docker-run:
-	@echo "Starting Docker containers..."
+	@echo "Starting production Docker containers..."
 	docker-compose up -d
 
 docker-stop:
 	@echo "Stopping Docker containers..."
 	docker-compose down
+
+# Development Docker commands
+docker-dev:
+	@echo "Starting development Docker containers..."
+	docker-compose -f docker-compose.dev.yml up -d
+
+docker-dev-stop:
+	@echo "Stopping development Docker containers..."
+	docker-compose -f docker-compose.dev.yml down
+
+docker-logs:
+	@echo "Showing Docker logs..."
+	docker-compose logs -f
+
+docker-dev-logs:
+	@echo "Showing development Docker logs..."
+	docker-compose -f docker-compose.dev.yml logs -f
 
 # Clean up generated files
 clean:

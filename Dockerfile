@@ -49,5 +49,9 @@ RUN mkdir -p /app/data/raw /app/data/processed /app/data/vectorstore
 # Expose port
 EXPOSE 8000
 
-# Set the default command
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Set the default command for production
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
