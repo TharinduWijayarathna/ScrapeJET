@@ -2,7 +2,7 @@
 
 A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) capabilities that can scrape any website, extract structured data, and provide intelligent responses using LLMs.
 
-## Features
+## 🚀 Features
 
 - **Universal Web Scraping**: Scrape any website with intelligent content extraction
 - **Pagination Support**: Automatically detect and handle pagination
@@ -15,31 +15,16 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
 - **REST API**: FastAPI-based API for easy integration
 - **CLI Interface**: Command-line tool for quick usage
 
-## Architecture
+## 📋 Requirements
 
-```
-web-scraper/
-├── src/
-│   ├── scraper/          # Web scraping modules
-│   │   ├── base_scraper.py
-│   │   └── universal_scraper.py
-│   ├── rag/             # RAG functionality
-│   │   ├── vector_store.py
-│   │   └── llm_interface.py
-│   └── api/             # FastAPI application
-│       └── main.py
-├── data/                # Data storage
-│   ├── raw/            # Raw scraped data
-│   ├── processed/      # Processed data
-│   └── vectorstore/    # Vector database
-├── Dockerfile          # Docker configuration
-├── docker-compose.yml  # Docker Compose setup
-└── requirements.txt    # Python dependencies
-```
+- **Python 3.12+** (recommended) or Python 3.11
+- **Chrome/Chromium** (for Selenium scraping)
+- **Git** (for cloning)
+- **Virtual Environment** (recommended)
 
-## Quick Start
+## 🛠️ Installation
 
-### Using Docker (Recommended)
+### Method 1: Direct Installation (Recommended)
 
 1. **Clone the repository**:
    ```bash
@@ -47,7 +32,39 @@ web-scraper/
    cd web-scraper
    ```
 
-2. **Set up environment variables**:
+2. **Create and activate virtual environment**:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install system dependencies** (Linux/Ubuntu):
+   ```bash
+   sudo apt update
+   sudo apt install -y swig build-essential libopenblas-dev
+   ```
+
+4. **Install Python dependencies**:
+   ```bash
+   pip install --upgrade setuptools wheel
+   pip install -r requirements.txt
+   ```
+
+5. **Set up environment variables**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+### Method 2: Docker Installation
+
+1. **Clone and navigate**:
+   ```bash
+   git clone https://github.com/TharinduWijayarathna/ScrapeJET.git
+   cd web-scraper
+   ```
+
+2. **Set up environment**:
    ```bash
    cp .env.example .env
    # Edit .env with your API keys
@@ -58,115 +75,127 @@ web-scraper/
    docker-compose up --build
    ```
 
-4. **Access the API**:
-   - API Documentation: http://localhost:8000/docs
-   - Health Check: http://localhost:8000/health
+## 🚀 Quick Start
 
-### Using Python directly
+### Basic Usage
 
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+# Activate virtual environment
+source venv/bin/activate
 
-2. **Set environment variables**:
-   ```bash
-   export OPENAI_API_KEY="your_openai_api_key"
-   # or for AWS Bedrock
-   export AWS_ACCESS_KEY_ID="your_aws_key"
-   export AWS_SECRET_ACCESS_KEY="your_aws_secret"
-   ```
+# Basic scraping
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com
 
-3. **Run the API**:
-   ```bash
-   python -m src.api.main
-   ```
+# Scrape with options
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --max-pages 50 --output-format json
+```
 
-## Usage
+### Interactive Mode
+
+```bash
+# Scrape and start interactive querying
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --interactive
+
+# Example queries:
+# > What products are available?
+# > What are the contact details?
+# > What services do they offer?
+```
+
+## 📖 Usage Guide
 
 ### Command Line Interface
 
+#### Basic Scraping
 ```bash
-# Basic scraping
-python src/cli.py https://example.com
+# Simple scraping
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/
 
-# Scrape with custom settings
-python src/cli.py https://example.com --max-pages 50 --output-format json
+# Limit pages
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --max-pages 10
 
-# Scrape and start interactive query mode
-python src/cli.py https://example.com --interactive
+# Choose output format
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --output-format json
+```
+
+#### RAG Features
+```bash
+# Interactive querying
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --interactive
 
 # Single query
-python src/cli.py https://example.com --query "What products are available?"
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --query "What products do they sell?"
 
-# Use AWS Bedrock
-python src/cli.py https://example.com --llm-provider bedrock --interactive
+# Use different LLM providers
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-provider openai --interactive
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-provider bedrock --interactive
 ```
+
+#### Advanced Options
+```bash
+# Debug mode
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --log-level DEBUG
+
+# Custom LLM model
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com/ --llm-model gpt-4 --interactive
+```
+
+### Available Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--max-pages` | Maximum pages to scrape | 100 |
+| `--output-format` | Output format (json/markdown/both) | both |
+| `--llm-provider` | LLM provider (openai/bedrock) | openai |
+| `--llm-model` | Specific LLM model | gpt-3.5-turbo |
+| `--interactive` | Start interactive query mode | False |
+| `--query` | Single query to run | None |
+| `--log-level` | Logging level | INFO |
 
 ### API Usage
 
-#### 1. Scrape a Website
-
+#### Start the API Server
 ```bash
-curl -X POST "http://localhost:8000/scrape" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com",
-    "max_pages": 100,
-    "output_format": "both",
-    "llm_provider": "openai"
-  }'
+# Activate virtual environment
+source venv/bin/activate
+
+# Start API server
+PYTHONPATH=/path/to/web-scraper python -m src.api.main
 ```
 
-#### 2. Query the RAG System
+#### API Endpoints
 
-```bash
-curl -X POST "http://localhost:8000/query" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "What products are available?",
-    "n_results": 5
-  }'
-```
+1. **Scrape Website**:
+   ```bash
+   curl -X POST "http://localhost:8000/scrape" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "url": "https://example.com",
+       "max_pages": 100,
+       "output_format": "both"
+     }'
+   ```
 
-#### 3. Check Data Status
+2. **Query RAG System**:
+   ```bash
+   curl -X POST "http://localhost:8000/query" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "question": "What products are available?",
+       "n_results": 5
+     }'
+   ```
 
-```bash
-curl "http://localhost:8000/data/status"
-```
+3. **Check Status**:
+   ```bash
+   curl "http://localhost:8000/health"
+   ```
 
-#### 4. Clear Data
-
-```bash
-curl -X DELETE "http://localhost:8000/data/clear"
-```
-
-### Python API Usage
-
-```python
-import requests
-
-# Scrape website
-scrape_response = requests.post("http://localhost:8000/scrape", json={
-    "url": "https://example.com",
-    "max_pages": 50,
-    "llm_provider": "openai"
-})
-
-# Query RAG system
-query_response = requests.post("http://localhost:8000/query", json={
-    "question": "What are the main features of this website?",
-    "n_results": 3
-})
-
-print(query_response.json()["answer"])
-```
-
-## Configuration
+## 🔧 Configuration
 
 ### Environment Variables
 
-Create a `.env` file with the following variables:
+Create a `.env` file:
 
 ```env
 # OpenAI Configuration
@@ -186,64 +215,16 @@ LOG_LEVEL=INFO
 ### LLM Providers
 
 #### OpenAI
-- Models: `gpt-3.5-turbo`, `gpt-4`, `gpt-4-turbo`
-- Requires: OpenAI API key
+- **Models**: `gpt-3.5-turbo`, `gpt-4`, `gpt-4-turbo`
+- **Setup**: Get API key from [OpenAI Platform](https://platform.openai.com/)
+- **Cost**: Pay-per-token usage
 
 #### AWS Bedrock
-- Models: `anthropic.claude-v2`, `anthropic.claude-3`, `amazon.titan-text-express-v1`
-- Requires: AWS credentials with Bedrock access
+- **Models**: `anthropic.claude-v2`, `anthropic.claude-3`, `amazon.titan-text-express-v1`
+- **Setup**: AWS credentials with Bedrock access
+- **Cost**: AWS pricing model
 
-## Features in Detail
-
-### Web Scraping
-
-The scraper uses multiple strategies to handle different types of websites:
-
-1. **Requests**: Fast scraping for static sites
-2. **Selenium**: JavaScript-heavy sites with Chrome
-3. **Playwright**: Complex dynamic sites
-
-#### Content Extraction
-
-- **General Content**: Titles, descriptions, main content
-- **Products**: Names, prices, descriptions, images, links
-- **Contact Information**: Emails, phone numbers, addresses
-- **Links**: Internal and external links
-- **Images**: Image URLs and metadata
-
-#### Pagination Detection
-
-Automatically detects common pagination patterns:
-- `?page=2`
-- `?p=2`
-- `/page/2`
-- Numeric URLs
-
-### RAG System
-
-#### Vector Store
-- Uses ChromaDB for vector storage
-- Sentence transformers for embeddings
-- Configurable chunk size and overlap
-
-#### LLM Integration
-- Context-aware responses
-- Multiple model support
-- Configurable temperature and tokens
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | API information |
-| `/health` | GET | Health check |
-| `/scrape` | POST | Scrape a website |
-| `/query` | POST | Query the RAG system |
-| `/data/status` | GET | Get data status |
-| `/data/clear` | DELETE | Clear all data |
-| `/rag/reinitialize` | POST | Reinitialize RAG system |
-
-## Data Formats
+## 📊 Output Formats
 
 ### JSON Output
 ```json
@@ -287,70 +268,134 @@ Automatically detects common pagination patterns:
 - address: 123 Main St, City, State
 ```
 
-## Examples
+## 🎯 Use Cases
 
 ### E-commerce Scraping
 ```bash
-# Scrape an e-commerce site
-python src/cli.py https://shop.example.com --interactive
+# Scrape product catalog
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://shop.example.com --interactive
 
-# Query about products
-> What products are available under $50?
-> What are the most expensive items?
-> Are there any discounts or sales?
+# Example queries:
+# > What products are available under $50?
+# > What are the most expensive items?
+# > Are there any discounts or sales?
+# > What categories of products do they sell?
 ```
 
 ### Business Website Analysis
 ```bash
-# Scrape a business website
-python src/cli.py https://company.example.com --interactive
+# Scrape company website
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://company.example.com --interactive
 
-# Query about the business
-> What services does this company offer?
-> What are their contact details?
-> What is their main value proposition?
+# Example queries:
+# > What services does this company offer?
+# > What are their contact details?
+# > What is their main value proposition?
+# > Who are the key team members?
 ```
 
 ### News/Blog Analysis
 ```bash
-# Scrape a news site
-python src/cli.py https://news.example.com --interactive
+# Scrape news site
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://news.example.com --interactive
 
-# Query about content
-> What are the main topics covered?
-> What are the latest articles?
-> Who are the main authors?
+# Example queries:
+# > What are the main topics covered?
+# > What are the latest articles?
+# > Who are the main authors?
+# > What are the trending stories?
 ```
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Chrome/Selenium Issues**:
-   - Ensure Chrome is installed in Docker
-   - Check ChromeDriver version compatibility
+#### 1. **ModuleNotFoundError: No module named 'src'**
+```bash
+# Solution: Set PYTHONPATH
+export PYTHONPATH=/path/to/web-scraper
+# or
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com
+```
 
-2. **API Key Issues**:
-   - Verify API keys are set correctly
-   - Check API quotas and billing
+#### 2. **ModuleNotFoundError: No module named 'loguru'**
+```bash
+# Solution: Activate virtual environment
+source venv/bin/activate
+```
 
-3. **Memory Issues**:
-   - Reduce `max_pages` for large sites
-   - Increase Docker memory limits
+#### 3. **faiss-cpu build errors**
+```bash
+# Solution: Install system dependencies
+sudo apt update
+sudo apt install -y swig build-essential libopenblas-dev
 
-4. **Rate Limiting**:
-   - Add delays between requests
-   - Use proxy rotation (not implemented)
+# Then reinstall
+pip install faiss-cpu --no-build-isolation
+```
+
+#### 4. **Chrome/Selenium Issues**
+```bash
+# Install Chrome
+sudo apt install -y google-chrome-stable
+
+# Or use Docker for consistent environment
+docker-compose up --build
+```
+
+#### 5. **API Key Issues**
+```bash
+# Check environment variables
+echo $OPENAI_API_KEY
+
+# Set in .env file
+echo "OPENAI_API_KEY=your_key_here" >> .env
+```
 
 ### Debug Mode
 
 ```bash
 # Enable debug logging
-export LOG_LEVEL=DEBUG
-python src/cli.py https://example.com --log-level DEBUG
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://example.com --log-level DEBUG
 ```
 
-## Development
+### Performance Issues
+
+1. **Memory Issues**:
+   ```bash
+   # Reduce pages for large sites
+   --max-pages 50
+   ```
+
+2. **Rate Limiting**:
+   ```bash
+   # Add delays (implemented in scraper)
+   # Consider using proxies for high-volume scraping
+   ```
+
+## 🏗️ Architecture
+
+```
+web-scraper/
+├── src/
+│   ├── scraper/          # Web scraping modules
+│   │   ├── base_scraper.py
+│   │   └── universal_scraper.py
+│   ├── rag/             # RAG functionality
+│   │   ├── vector_store.py
+│   │   └── llm_interface.py
+│   └── api/             # FastAPI application
+│       └── main.py
+├── data/                # Data storage
+│   ├── raw/            # Raw scraped data
+│   ├── processed/      # Processed data
+│   └── vectorstore/    # Vector database
+├── Dockerfile          # Docker configuration
+├── docker-compose.yml  # Docker Compose setup
+└── requirements.txt    # Python dependencies
+```
+
+## 🔧 Development
 
 ### Project Structure
 ```
@@ -370,18 +415,57 @@ src/
 ### Testing
 
 ```bash
-# Run tests (when implemented)
-pytest tests/
-
 # Manual testing
-python src/cli.py https://httpbin.org --max-pages 1
+PYTHONPATH=/path/to/web-scraper python src/cli.py https://httpbin.org --max-pages 1
+
+# API testing
+curl http://localhost:8000/health
 ```
 
-## License
+## 📝 Examples
+
+### Complete Workflow
+
+```bash
+# 1. Set up environment
+source venv/bin/activate
+export PYTHONPATH=/path/to/web-scraper
+
+# 2. Scrape a website
+python src/cli.py https://example.com/ --max-pages 20
+
+# 3. Interactive querying
+python src/cli.py https://example.com/ --interactive
+
+# 4. Ask questions
+> What products do they sell?
+> What are their contact details?
+> What are the price ranges?
+> Do they have any special offers?
+```
+
+### API Workflow
+
+```bash
+# 1. Start API server
+python -m src.api.main
+
+# 2. Scrape website
+curl -X POST "http://localhost:8000/scrape" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/", "max_pages": 10}'
+
+# 3. Query the data
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What products are available?"}'
+```
+
+## 📄 License
 
 This project is licensed under the MIT License.
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -389,9 +473,22 @@ This project is licensed under the MIT License.
 4. Add tests
 5. Submit a pull request
 
-## Support
+## 📞 Support
 
 For issues and questions:
 - Create an issue on GitHub
 - Check the troubleshooting section
 - Review the API documentation at `/docs`
+
+## 🔄 Updates
+
+### Recent Changes
+- **Python 3.12 Support**: Updated dependencies for Python 3.12 compatibility
+- **faiss-cpu Fix**: Resolved build issues with newer version
+- **Installation Guide**: Enhanced installation instructions
+- **Troubleshooting**: Added common issues and solutions
+
+### Version History
+- **v1.0.0**: Initial release with basic scraping
+- **v1.1.0**: Added RAG capabilities
+- **v1.2.0**: Python 3.12 compatibility and improved installation
