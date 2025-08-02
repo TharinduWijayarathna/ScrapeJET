@@ -33,11 +33,18 @@ class BaseScraper(ABC):
         self.data = []
         
     def get_page_content(self, url: str) -> Optional[str]:
-        """Get page content using requests"""
+        """Get page content using requests with better timeout handling"""
         try:
-            response = self.session.get(url, timeout=30)
+            # Use shorter timeout for faster failure detection
+            response = self.session.get(url, timeout=(10, 30))  # (connect_timeout, read_timeout)
             response.raise_for_status()
             return response.text
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout fetching {url}")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection error fetching {url}")
+            return None
         except Exception as e:
             logger.error(f"Error fetching {url}: {e}")
             return None
