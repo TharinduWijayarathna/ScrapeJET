@@ -174,7 +174,7 @@ Please provide a comprehensive answer based on the scraped data. If the informat
 
 
 class RAGSystem:
-    """Complete RAG system combining vector store and LLM"""
+    """Complete RAG system combining vector store and LLM with site-wise organization"""
     
     def __init__(self, vector_store, llm_interface):
         self.vector_store = vector_store
@@ -182,23 +182,50 @@ class RAGSystem:
         
         logger.info("RAG system initialized")
     
-    def add_documents(self, documents: List[Dict[str, Any]]):
-        """Add documents to the vector store"""
-        self.vector_store.add_documents(documents)
+    def add_documents(self, documents: List[Dict[str, Any]], site_name: Optional[str] = None):
+        """Add documents to the vector store with optional site specification"""
+        self.vector_store.add_documents(documents, site_name=site_name)
     
-    def query(self, question: str, n_results: int = 5) -> str:
-        """Query the RAG system"""
+    def query(self, question: str, n_results: int = 5, site_name: Optional[str] = None) -> str:
+        """Query the RAG system, optionally within a specific site"""
         # Search for relevant documents
-        search_results = self.vector_store.search(question, n_results)
+        search_results = self.vector_store.search(question, n_results, site_name)
         
         if not search_results:
-            return "No relevant information found in the scraped data."
+            if site_name:
+                return f"No relevant information found in the scraped data for site '{site_name}'."
+            else:
+                return "No relevant information found in the scraped data."
         
         # Generate response using LLM
         response = self.llm_interface.generate_response(question, search_results)
         
         return response
     
-    def get_relevant_context(self, question: str, n_results: int = 5) -> List[Dict[str, Any]]:
+    def query_site_specific(self, question: str, site_name: str, n_results: int = 5) -> str:
+        """Query the RAG system for a specific site"""
+        return self.query(question, n_results, site_name)
+    
+    def get_relevant_context(self, question: str, n_results: int = 5, site_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get relevant context without generating a response"""
-        return self.vector_store.search(question, n_results) 
+        return self.vector_store.search(question, n_results, site_name)
+    
+    def get_sites(self) -> List[str]:
+        """Get list of available sites"""
+        return self.vector_store.get_sites()
+    
+    def get_site_stats(self, site_name: str) -> Dict[str, Any]:
+        """Get statistics for a specific site"""
+        return self.vector_store.get_site_stats(site_name)
+    
+    def get_all_sites_stats(self) -> Dict[str, Dict[str, Any]]:
+        """Get statistics for all sites"""
+        return self.vector_store.get_all_sites_stats()
+    
+    def clear_site(self, site_name: str):
+        """Clear all documents for a specific site"""
+        self.vector_store.clear_site(site_name)
+    
+    def clear_all(self):
+        """Clear all documents from all sites"""
+        self.vector_store.clear() 

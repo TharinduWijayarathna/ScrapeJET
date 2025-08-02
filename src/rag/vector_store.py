@@ -2,11 +2,12 @@ import json
 import os
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 from loguru import logger
+from urllib.parse import urlparse
 
 # Disable telemetry for sentence-transformers and huggingface
 os.environ["SENTENCE_TRANSFORMERS_HOME"] = "/tmp/sentence_transformers"
@@ -14,7 +15,7 @@ os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 
 class VectorStore:
-    """Vector store for storing and searching scraped documents"""
+    """Vector store for storing and searching scraped documents with site-wise organization"""
     
     def __init__(self, persist_directory: str = "data/vectorstore"):
         """Initialize vector store"""
@@ -32,28 +33,93 @@ class VectorStore:
         # Initialize embedding model
         self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
         
-        # Get or create collection
-        try:
-            self.collection = self.client.get_collection("scraped_data")
-        except:
-            self.collection = self.client.create_collection("scraped_data")
+        # Track content hashes to prevent duplicates per site
+        self._content_hashes: Dict[str, Set[str]] = {}
         
-        # Track content hashes to prevent duplicates
-        self._content_hashes: Set[str] = set()
+        # Track available sites
+        self._available_sites = self._discover_sites()
         
         logger.info(f"Vector store initialized at {persist_directory}")
+        logger.info(f"Available sites: {list(self._available_sites.keys())}")
     
-    def add_documents(self, documents: List[Dict[str, Any]], chunk_size: int = 1000):
-        """Add documents to the vector store with deduplication"""
+    def _discover_sites(self) -> Dict[str, str]:
+        """Discover existing site collections"""
+        sites = {}
+        try:
+            collections = self.client.list_collections()
+            for collection in collections:
+                if collection.name.startswith("site_"):
+                    site_name = collection.name.replace("site_", "")
+                    sites[site_name] = collection.name
+        except Exception as e:
+            logger.warning(f"Error discovering sites: {e}")
+        return sites
+    
+    def _get_site_name(self, url: str) -> str:
+        """Extract site name from URL"""
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            # Remove www. prefix if present
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            return domain
+        except:
+            # Fallback: use URL as site name
+            return url.replace("://", "_").replace("/", "_").replace(".", "_")
+    
+    def _get_or_create_site_collection(self, site_name: str):
+        """Get or create collection for a specific site"""
+        collection_name = f"site_{site_name}"
+        
+        if collection_name not in self._available_sites:
+            try:
+                collection = self.client.get_collection(collection_name)
+                self._available_sites[site_name] = collection_name
+            except:
+                collection = self.client.create_collection(collection_name)
+                self._available_sites[site_name] = collection_name
+                self._content_hashes[site_name] = set()
+        else:
+            collection = self.client.get_collection(collection_name)
+        
+        return collection
+    
+    def add_documents(self, documents: List[Dict[str, Any]], chunk_size: int = 1000, site_name: Optional[str] = None):
+        """Add documents to the vector store with site-wise organization"""
         if not documents:
             logger.warning("No documents to add")
             return
         
+        # Group documents by site if site_name not provided
+        if site_name is None:
+            site_groups = {}
+            for doc in documents:
+                doc_site = self._get_site_name(doc.get('url', ''))
+                if doc_site not in site_groups:
+                    site_groups[doc_site] = []
+                site_groups[doc_site].append(doc)
+            
+            # Add documents for each site
+            for site, site_docs in site_groups.items():
+                self._add_documents_for_site(site_docs, site, chunk_size)
+        else:
+            self._add_documents_for_site(documents, site_name, chunk_size)
+    
+    def _add_documents_for_site(self, documents: List[Dict[str, Any]], site_name: str, chunk_size: int):
+        """Add documents for a specific site"""
+        # Get or create collection for this site
+        collection = self._get_or_create_site_collection(site_name)
+        
+        # Initialize content hashes for this site if not exists
+        if site_name not in self._content_hashes:
+            self._content_hashes[site_name] = set()
+        
         # Process documents into chunks with deduplication
-        chunks = self._chunk_documents_optimized(documents, chunk_size)
+        chunks = self._chunk_documents_optimized(documents, chunk_size, site_name)
         
         if not chunks:
-            logger.warning("No unique chunks to add after deduplication")
+            logger.warning(f"No unique chunks to add for site {site_name}")
             return
         
         # Prepare data for ChromaDB
@@ -62,19 +128,19 @@ class VectorStore:
         metadatas = []
         
         for i, chunk in enumerate(chunks):
-            chunk_id = f"chunk_{i}"
+            chunk_id = f"{site_name}_chunk_{i}"
             ids.append(chunk_id)
             texts.append(chunk['text'])
             metadatas.append(chunk['metadata'])
         
         # Add to collection
-        self.collection.add(
+        collection.add(
             documents=texts,
             metadatas=metadatas,
             ids=ids
         )
         
-        logger.info(f"Added {len(chunks)} unique chunks to vector store")
+        logger.info(f"Added {len(chunks)} unique chunks to vector store for site {site_name}")
     
     def _chunk_documents(self, documents: List[Dict[str, Any]], chunk_size: int) -> List[Dict[str, Any]]:
         """Split documents into chunks"""
@@ -137,10 +203,10 @@ class VectorStore:
         
         return chunks
     
-    def _chunk_documents_optimized(self, documents: List[Dict[str, Any]], chunk_size: int) -> List[Dict[str, Any]]:
+    def _chunk_documents_optimized(self, documents: List[Dict[str, Any]], chunk_size: int, site_name: str) -> List[Dict[str, Any]]:
         """Split documents into chunks with deduplication and optimization"""
         chunks = []
-        seen_hashes = set()
+        seen_hashes = self._content_hashes.get(site_name, set())
         
         for doc in documents:
             # Extract and optimize text content
@@ -176,9 +242,13 @@ class VectorStore:
                             'title': doc.get('title', ''),
                             'chunk_index': i // chunk_size,
                             'total_chunks': (len(words) + chunk_size - 1) // chunk_size,
-                            'content_hash': chunk_hash
+                            'content_hash': chunk_hash,
+                            'site_name': site_name
                         }
                     })
+        
+        # Update content hashes for this site
+        self._content_hashes[site_name] = seen_hashes
         
         return chunks
     
@@ -279,12 +349,43 @@ class VectorStore:
         
         return unique_contacts
     
-    def search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
-        """Search for similar documents"""
-        results = self.collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
+    def search(self, query: str, n_results: int = 5, site_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Search for similar documents, optionally within a specific site"""
+        if site_name:
+            # Search within specific site
+            if site_name not in self._available_sites:
+                logger.warning(f"Site {site_name} not found")
+                return []
+            
+            collection = self.client.get_collection(self._available_sites[site_name])
+            results = collection.query(
+                query_texts=[query],
+                n_results=n_results
+            )
+        else:
+            # Search across all sites
+            all_results = []
+            for site_name, collection_name in self._available_sites.items():
+                try:
+                    collection = self.client.get_collection(collection_name)
+                    site_results = collection.query(
+                        query_texts=[query],
+                        n_results=n_results
+                    )
+                    
+                    # Add site information to results
+                    for i in range(len(site_results['documents'][0])):
+                        all_results.append({
+                            'text': site_results['documents'][0][i],
+                            'metadata': {**site_results['metadatas'][0][i], 'site_name': site_name},
+                            'distance': site_results['distances'][0][i] if 'distances' in site_results else None
+                        })
+                except Exception as e:
+                    logger.warning(f"Error searching site {site_name}: {e}")
+            
+            # Sort by distance and return top results
+            all_results.sort(key=lambda x: x.get('distance', float('inf')))
+            return all_results[:n_results]
         
         # Format results
         formatted_results = []
@@ -297,47 +398,76 @@ class VectorStore:
         
         return formatted_results
     
-    def get_optimization_stats(self) -> Dict[str, Any]:
-        """Get statistics about data optimization"""
+    def search_site_specific(self, query: str, site_name: str, n_results: int = 5) -> List[Dict[str, Any]]:
+        """Search for documents within a specific site"""
+        return self.search(query, n_results, site_name)
+    
+    def get_sites(self) -> List[str]:
+        """Get list of available sites"""
+        return list(self._available_sites.keys())
+    
+    def get_site_stats(self, site_name: str) -> Dict[str, Any]:
+        """Get statistics for a specific site"""
+        if site_name not in self._available_sites:
+            return {'error': f'Site {site_name} not found'}
+        
         try:
-            all_docs = self.get_all_documents()
+            collection = self.client.get_collection(self._available_sites[site_name])
+            results = collection.get()
             
-            # Count unique content hashes
+            total_chunks = len(results['documents'])
             unique_hashes = set()
-            total_chunks = 0
             
-            for doc in all_docs:
-                metadata = doc.get('metadata', {})
+            for metadata in results['metadatas']:
                 if 'content_hash' in metadata:
                     unique_hashes.add(metadata['content_hash'])
-                total_chunks += 1
-            
-            # Calculate deduplication ratio
-            dedup_ratio = 0
-            if total_chunks > 0:
-                dedup_ratio = (total_chunks - len(unique_hashes)) / total_chunks * 100
             
             return {
+                'site_name': site_name,
                 'total_chunks': total_chunks,
                 'unique_chunks': len(unique_hashes),
                 'duplicate_chunks': total_chunks - len(unique_hashes),
-                'deduplication_ratio': round(dedup_ratio, 2),
-                'storage_efficiency': round(len(unique_hashes) / max(total_chunks, 1) * 100, 2)
+                'deduplication_ratio': round((total_chunks - len(unique_hashes)) / max(total_chunks, 1) * 100, 2)
             }
         except Exception as e:
-            logger.error(f"Error getting optimization stats: {e}")
-            return {
-                'total_chunks': 0,
-                'unique_chunks': 0,
-                'duplicate_chunks': 0,
-                'deduplication_ratio': 0,
-                'storage_efficiency': 0
-            }
+            logger.error(f"Error getting stats for site {site_name}: {e}")
+            return {'error': str(e)}
     
-    def get_all_documents(self) -> List[Dict[str, Any]]:
-        """Get all documents from the vector store"""
-        results = self.collection.get()
+    def get_all_sites_stats(self) -> Dict[str, Dict[str, Any]]:
+        """Get statistics for all sites"""
+        stats = {}
+        for site_name in self._available_sites:
+            stats[site_name] = self.get_site_stats(site_name)
+        return stats
+    
+    def get_all_documents(self, site_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all documents from the vector store, optionally for a specific site"""
+        if site_name:
+            if site_name not in self._available_sites:
+                return []
+            
+            collection = self.client.get_collection(self._available_sites[site_name])
+            results = collection.get()
+        else:
+            # Get from all sites
+            all_results = []
+            for site_name, collection_name in self._available_sites.items():
+                try:
+                    collection = self.client.get_collection(collection_name)
+                    site_results = collection.get()
+                    
+                    for i in range(len(site_results['documents'])):
+                        all_results.append({
+                            'text': site_results['documents'][i],
+                            'metadata': {**site_results['metadatas'][i], 'site_name': site_name},
+                            'id': site_results['ids'][i]
+                        })
+                except Exception as e:
+                    logger.warning(f"Error getting documents from site {site_name}: {e}")
+            
+            return all_results
         
+        # Format results
         formatted_results = []
         for i in range(len(results['documents'])):
             formatted_results.append({
@@ -348,11 +478,20 @@ class VectorStore:
         
         return formatted_results
     
+    def clear_site(self, site_name: str):
+        """Clear all documents for a specific site"""
+        if site_name in self._available_sites:
+            collection_name = self._available_sites[site_name]
+            self.client.delete_collection(collection_name)
+            del self._available_sites[site_name]
+            if site_name in self._content_hashes:
+                del self._content_hashes[site_name]
+            logger.info(f"Cleared vector store for site {site_name}")
+        else:
+            logger.warning(f"Site {site_name} not found")
+    
     def clear(self):
-        """Clear all documents from the vector store"""
-        self.client.delete_collection("scraped_data")
-        self.collection = self.client.create_collection(
-            name="scraped_data",
-            metadata={"hnsw:space": "cosine"}
-        )
-        logger.info("Vector store cleared")
+        """Clear all documents from all sites"""
+        for site_name in list(self._available_sites.keys()):
+            self.clear_site(site_name)
+        logger.info("All vector stores cleared")
