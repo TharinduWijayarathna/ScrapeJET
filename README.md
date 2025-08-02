@@ -558,8 +558,6 @@ python src/cli.py https://example.com --interactive
 > Do they have any special offers?
 ```
 
-
-
 ### API Workflow
 
 ```bash
