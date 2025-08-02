@@ -17,27 +17,13 @@ services:
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
       - MAX_PAGES=${MAX_PAGES:-100}
       - CHUNK_SIZE=${CHUNK_SIZE:-1000}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
     env_file:
       - .env
     networks:
       - scraper-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
 
 networks:
   scraper-network:
-    driver: bridge
+    driver: bridge 
