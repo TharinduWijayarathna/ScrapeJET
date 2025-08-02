@@ -241,7 +241,6 @@ data/vectorstore/*
 
 # Scraped data files
 *.json
-*.md
 !requirements.txt
 !README.md
 !config.py

@@ -35,6 +35,7 @@ class ScrapeRequest(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     n_results: int = 5
+    site_name: Optional[str] = None  # Optional site-specific query
 
 
 class ScrapeResponse(BaseModel):
@@ -46,6 +47,20 @@ class ScrapeResponse(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     context: List[Dict[str, Any]]
+    site_name: Optional[str] = None
+
+
+class SiteInfo(BaseModel):
+    site_name: str
+    total_chunks: int
+    unique_chunks: int
+    duplicate_chunks: int
+    deduplication_ratio: float
+
+
+class SitesResponse(BaseModel):
+    sites: List[str]
+    statistics: Dict[str, SiteInfo]
 
 
 # Global variables
@@ -203,7 +218,7 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
 
 @app.post("/query", response_model=QueryResponse)
 async def query_rag(request: QueryRequest):
-    """Query the RAG system"""
+    """Query the RAG system, optionally for a specific site"""
     global rag_system
     
     if rag_system is None:
@@ -211,18 +226,124 @@ async def query_rag(request: QueryRequest):
     
     try:
         # Get answer from RAG system
-        answer = rag_system.query(request.question, request.n_results)
-        
-        # Get relevant context
-        context = rag_system.get_relevant_context(request.question, request.n_results)
+        if request.site_name:
+            # Site-specific query
+            answer = rag_system.query_site_specific(request.question, request.site_name, request.n_results)
+            context = rag_system.get_relevant_context(request.question, request.n_results, request.site_name)
+        else:
+            # Query across all sites
+            answer = rag_system.query(request.question, request.n_results)
+            context = rag_system.get_relevant_context(request.question, request.n_results)
         
         return QueryResponse(
             answer=answer,
-            context=context
+            context=context,
+            site_name=request.site_name
         )
         
     except Exception as e:
         logger.error(f"Error querying RAG system: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sites", response_model=SitesResponse)
+async def get_sites():
+    """Get list of available sites and their statistics"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="RAG system not initialized. Please scrape a website first.")
+    
+    try:
+        sites = rag_system.get_sites()
+        statistics = rag_system.get_all_sites_stats()
+        
+        # Convert statistics to SiteInfo objects
+        site_info = {}
+        for site_name, stats in statistics.items():
+            if 'error' not in stats:
+                site_info[site_name] = SiteInfo(
+                    site_name=site_name,
+                    total_chunks=stats.get('total_chunks', 0),
+                    unique_chunks=stats.get('unique_chunks', 0),
+                    duplicate_chunks=stats.get('duplicate_chunks', 0),
+                    deduplication_ratio=stats.get('deduplication_ratio', 0.0)
+                )
+        
+        return SitesResponse(
+            sites=sites,
+            statistics=site_info
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting sites: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sites/{site_name}/stats")
+async def get_site_stats(site_name: str):
+    """Get statistics for a specific site"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="RAG system not initialized. Please scrape a website first.")
+    
+    try:
+        stats = rag_system.get_site_stats(site_name)
+        
+        if 'error' in stats:
+            raise HTTPException(status_code=404, detail=stats['error'])
+        
+        return stats
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting site stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/sites/{site_name}")
+async def clear_site(site_name: str):
+    """Clear a specific site from the vector store"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="RAG system not initialized.")
+    
+    try:
+        rag_system.clear_site(site_name)
+        return {"message": f"Site '{site_name}' cleared successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error clearing site: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/query/site/{site_name}")
+async def query_site_specific(site_name: str, request: QueryRequest):
+    """Query a specific site"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="No data available. Please scrape a website first.")
+    
+    try:
+        # Override site_name from path parameter
+        request.site_name = site_name
+        
+        # Get answer from RAG system for specific site
+        answer = rag_system.query_site_specific(request.question, site_name, request.n_results)
+        context = rag_system.get_relevant_context(request.question, request.n_results, site_name)
+        
+        return QueryResponse(
+            answer=answer,
+            context=context,
+            site_name=site_name
+        )
+        
+    except Exception as e:
+        logger.error(f"Error querying site {site_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
