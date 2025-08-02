@@ -2,6 +2,7 @@ import os
 import json
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
@@ -43,22 +44,6 @@ class QueryResponse(BaseModel):
     context: List[Dict[str, Any]]
 
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Web Scraper with RAG",
-    description="A comprehensive web scraper with RAG capabilities",
-    version="1.0.0"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Global variables
 rag_system = None
 current_data = []
@@ -85,14 +70,38 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
     logger.info(f"RAG system initialized with {llm_provider}")
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the application on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events for FastAPI"""
+    # Startup
     try:
         initialize_rag_system()
         logger.info("Application started successfully")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Application shutting down")
+
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Web Scraper with RAG",
+    description="A comprehensive web scraper with RAG capabilities",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
