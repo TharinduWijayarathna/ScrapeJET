@@ -386,6 +386,11 @@ class UniversalScraper(BaseScraper):
                     break
         
         logger.info(f"Multithreaded scraping completed. Processed {len(self._all_data)} pages, {len(self._failed_urls)} failed URLs.")
+        
+        # Log final statistics
+        success_rate = len(self._all_data) / (len(self._all_data) + len(self._failed_urls)) * 100 if (len(self._all_data) + len(self._failed_urls)) > 0 else 0
+        logger.info(f"Scraping Statistics: Success Rate: {success_rate:.1f}%, Total URLs: {len(self._visited)}, Failed URLs: {len(self._failed_urls)}")
+        
         return self._all_data
     
     def scrape_and_save(self, output_format: str = "both") -> Dict[str, str]:
