@@ -269,5 +269,29 @@ async def reinitialize_rag(request: ScrapeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/data/optimization")
+async def get_optimization_stats():
+    """Get vector store optimization statistics"""
+    try:
+        if rag_system and rag_system.vector_store:
+            stats = rag_system.vector_store.get_optimization_stats()
+            return {
+                "status": "success",
+                "optimization_stats": stats,
+                "message": f"Storage efficiency: {stats['storage_efficiency']}%, Deduplication ratio: {stats['deduplication_ratio']}%"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "RAG system not available"
+            }
+    except Exception as e:
+        logger.error(f"Error getting optimization stats: {e}")
+        return {
+            "status": "error",
+            "message": f"Error retrieving optimization statistics: {str(e)}"
+        }
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
