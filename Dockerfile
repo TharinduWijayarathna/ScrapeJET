@@ -49,8 +49,14 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/data/raw /app/data/processed /app/data/vectorstore
 
+# Create home directory for scraper user
+RUN mkdir -p /home/scraper && chown -R scraper:scraper /home/scraper
+
 # Set ownership to non-root user
 RUN chown -R scraper:scraper /app
+
+# Ensure the scraper user can write to necessary directories
+RUN chmod -R 755 /app/data
 
 # Switch to non-root user
 USER scraper
