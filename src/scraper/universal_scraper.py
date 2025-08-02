@@ -2,6 +2,8 @@ import asyncio
 import re
 import threading
 import concurrent.futures
+import queue
+import time
 from typing import Dict, List, Optional, Any, Set
 from urllib.parse import urljoin, urlparse, parse_qs
 from bs4 import BeautifulSoup
@@ -25,6 +27,11 @@ class UniversalScraper(BaseScraper):
         self._lock = threading.Lock()
         self._visited = set()
         self._all_data = []
+        self._url_queue = queue.Queue()
+        self._failed_urls = set()
+        self._retry_count = {}
+        self.max_retries = 3
+        self.retry_delay = 2
         
     def detect_pagination(self, soup: BeautifulSoup, current_url: str) -> List[str]:
         """Detect pagination links"""
@@ -221,7 +228,7 @@ class UniversalScraper(BaseScraper):
         return page_data
     
     def _scrape_single_page(self, url: str) -> Optional[Dict[str, Any]]:
-        """Scrape a single page (thread-safe)"""
+        """Scrape a single page with retry logic and thread safety"""
         with self._lock:
             if url in self._visited:
                 return None
@@ -229,33 +236,70 @@ class UniversalScraper(BaseScraper):
         
         logger.info(f"Scraping page: {url}")
         
-        # Try different methods to get page content
-        content = None
+        # Retry logic for failed requests
+        for attempt in range(self.max_retries):
+            try:
+                # Try to get content with requests first
+                content = self.get_page_content(url)
+                
+                if content:
+                    soup = BeautifulSoup(content, 'html.parser')
+                    page_data = self.parse_page(soup, url)
+                    
+                    with self._lock:
+                        self._all_data.append(page_data)
+                    
+                    # Get new URLs from this page
+                    new_urls = self._get_urls_to_visit(url)
+                    for new_url in new_urls:
+                        with self._lock:
+                            if new_url not in self._visited and new_url not in self._failed_urls:
+                                self._url_queue.put(new_url)
+                    
+                    return page_data
+                
+                # If content is None, try with Selenium as fallback
+                if attempt == 0:  # Only try Selenium on first attempt
+                    logger.info(f"Trying Selenium for {url}")
+                    content = self.get_page_with_selenium(url, wait_time=15)
+                    if content:
+                        soup = BeautifulSoup(content, 'html.parser')
+                        page_data = self.parse_page(soup, url)
+                        
+                        with self._lock:
+                            self._all_data.append(page_data)
+                        
+                        # Get new URLs from this page
+                        new_urls = self._get_urls_to_visit(url)
+                        for new_url in new_urls:
+                            with self._lock:
+                                if new_url not in self._visited and new_url not in self._failed_urls:
+                                    self._url_queue.put(new_url)
+                        
+                        return page_data
+                
+                # If we get here, the request failed
+                if attempt < self.max_retries - 1:
+                    logger.warning(f"Attempt {attempt + 1} failed for {url}, retrying in {self.retry_delay} seconds...")
+                    time.sleep(self.retry_delay)
+                    self.retry_delay *= 1.5  # Exponential backoff
+                else:
+                    logger.error(f"Failed to scrape {url} after {self.max_retries} attempts")
+                    with self._lock:
+                        self._failed_urls.add(url)
+                    return None
+                    
+            except Exception as e:
+                logger.error(f"Error scraping {url} (attempt {attempt + 1}): {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay)
+                    self.retry_delay *= 1.5
+                else:
+                    with self._lock:
+                        self._failed_urls.add(url)
+                    return None
         
-        # First try with requests
-        content = self.get_page_content(url)
-        
-        # If that fails, try with Selenium
-        if not content:
-            content = self.get_page_with_selenium(url)
-        
-        # If that fails, try with Playwright (async, but we'll handle this differently)
-        if not content:
-            # For now, skip Playwright in threaded mode to avoid complexity
-            logger.warning(f"Failed to get content from {url}")
-            return None
-        
-        if content:
-            soup = BeautifulSoup(content, 'html.parser')
-            page_data = self.parse_page(soup, url)
-            
-            with self._lock:
-                self._all_data.append(page_data)
-            
-            return page_data
-        else:
-            logger.warning(f"Failed to get content from {url}")
-            return None
+        return None
     
     def _get_urls_to_visit(self, url: str) -> List[str]:
         """Get URLs to visit from a single page"""
@@ -270,50 +314,78 @@ class UniversalScraper(BaseScraper):
         return new_links + pagination_links
     
     async def scrape_site(self) -> List[Dict[str, Any]]:
-        """Main scraping method with multithreading support"""
+        """Main scraping method with improved queue management and retry logic"""
         logger.info(f"Starting multithreaded scraping with {self.max_workers} workers")
         
         # Initialize with base URL
-        urls_to_visit = [self.base_url]
+        self._url_queue.put(self.base_url)
         self._visited.clear()
         self._all_data.clear()
+        self._failed_urls.clear()
+        self._retry_count.clear()
         
         page_count = 0
+        active_workers = 0
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            while urls_to_visit and page_count < self.max_pages:
-                # Get current batch of URLs to process
-                current_batch = urls_to_visit[:self.max_workers]
-                urls_to_visit = urls_to_visit[self.max_workers:]
-                
-                # Submit scraping tasks
-                future_to_url = {
-                    executor.submit(self._scrape_single_page, url): url 
-                    for url in current_batch
-                }
+            # Submit initial tasks
+            futures = []
+            for _ in range(min(self.max_workers, self.max_pages)):
+                if not self._url_queue.empty():
+                    url = self._url_queue.get_nowait()
+                    future = executor.submit(self._scrape_single_page, url)
+                    futures.append((future, url))
+                    active_workers += 1
+            
+            # Process tasks with queue management
+            while futures and page_count < self.max_pages:
+                # Wait for any task to complete
+                done, not_done = concurrent.futures.wait(
+                    [f[0] for f in futures], 
+                    return_when=concurrent.futures.FIRST_COMPLETED
+                )
                 
                 # Process completed tasks
-                for future in concurrent.futures.as_completed(future_to_url):
-                    url = future_to_url[future]
-                    try:
-                        page_data = future.result()
-                        if page_data:
-                            page_count += 1
-                            
-                            # Get new URLs from this page
-                            new_urls = self._get_urls_to_visit(url)
-                            for new_url in new_urls:
-                                with self._lock:
-                                    if new_url not in self._visited and new_url not in urls_to_visit:
-                                        urls_to_visit.append(new_url)
+                for future in done:
+                    # Find the URL for this future
+                    url = None
+                    for f, u in futures:
+                        if f == future:
+                            url = u
+                            futures.remove((f, u))
+                            active_workers -= 1
+                            break
                     
-                    except Exception as e:
-                        logger.error(f"Error scraping {url}: {e}")
+                    if url:
+                        try:
+                            page_data = future.result()
+                            if page_data:
+                                page_count += 1
+                                logger.info(f"Successfully scraped {url}")
+                            else:
+                                logger.warning(f"Failed to scrape {url}")
+                        except Exception as e:
+                            logger.error(f"Error scraping {url}: {e}")
+                
+                # Add new URLs to queue and submit new tasks
+                while not self._url_queue.empty() and active_workers < self.max_workers and page_count < self.max_pages:
+                    try:
+                        url = self._url_queue.get_nowait()
+                        future = executor.submit(self._scrape_single_page, url)
+                        futures.append((future, url))
+                        active_workers += 1
+                    except queue.Empty:
+                        break
                 
                 # Log progress
-                logger.info(f"Processed {page_count} pages, {len(urls_to_visit)} URLs remaining")
+                queue_size = self._url_queue.qsize()
+                logger.info(f"Processed {page_count} pages, {queue_size} URLs in queue, {len(self._failed_urls)} failed URLs")
+                
+                # If no active workers and queue is empty, we're done
+                if active_workers == 0 and self._url_queue.empty():
+                    break
         
-        logger.info(f"Multithreaded scraping completed. Processed {len(self._all_data)} pages.")
+        logger.info(f"Multithreaded scraping completed. Processed {len(self._all_data)} pages, {len(self._failed_urls)} failed URLs.")
         return self._all_data
     
     def scrape_and_save(self, output_format: str = "both") -> Dict[str, str]:
