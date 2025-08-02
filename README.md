@@ -25,7 +25,26 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
 
 ## 🛠️ Installation
 
-### Method 1: Direct Installation (Recommended)
+### Method 1: Docker Installation (Recommended)
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/TharinduWijayarathna/ScrapeJET.git
+   cd web-scraper
+   ```
+
+2. **Set up environment**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+3. **Run with Docker Compose**:
+   ```bash
+   docker-compose up --build
+   ```
+
+### Method 2: Direct Installation
 
 1. **Clone the repository**:
    ```bash
@@ -57,38 +76,49 @@ A comprehensive Python web scraper with RAG (Retrieval-Augmented Generation) cap
    # Edit .env with your API keys
    ```
 
-### Method 2: Docker Installation
-
-1. **Clone and navigate**:
-   ```bash
-   git clone https://github.com/TharinduWijayarathna/ScrapeJET.git
-   cd web-scraper
-   ```
-
-2. **Set up environment**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
-   ```
-
-3. **Run with Docker Compose**:
-   ```bash
-   docker-compose up --build
-   ```
-
 ## 🚀 Quick Start
 
-### Basic Usage
+### Using Makefile (Recommended)
+
+```bash
+# Show available commands
+make help
+
+# Run tests
+make test
+
+# Quick test scrape
+make scrape
+
+# Start Docker containers
+make docker-run
+
+# Stop Docker containers
+make docker-stop
+```
+
+### Docker Usage (Recommended)
+
+```bash
+# Build and run with Docker
+docker-compose up --build
+
+# Or use Makefile commands
+make docker-build
+make docker-run
+```
+
+### Manual Usage
 
 ```bash
 # Activate virtual environment
 source venv/bin/activate
 
-# Basic scraping (replace with your actual project path)
+# Basic scraping
 PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com
 
-# Scrape with options
-PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-pages 50 --output-format json
+# Scrape with multithreading
+PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com --max-workers 20
 ```
 
 ### Interactive Mode
@@ -104,6 +134,35 @@ PYTHONPATH=/home/thari/office/web-scraper python src/cli.py https://example.com 
 ```
 
 ## 📖 Usage Guide
+
+### Using Makefile (Easiest)
+
+The project includes a Makefile for easy command execution:
+
+```bash
+# Show all available commands
+make help
+
+# Run all tests
+make test
+
+# Quick test scrape
+make scrape
+
+# Docker commands
+make docker-build
+make docker-run
+make docker-stop
+
+# Clean up generated files
+make clean
+
+# Start development server
+make dev-server
+
+# Interactive scraping
+make interactive
+```
 
 ### Command Line Interface
 
@@ -441,32 +500,29 @@ curl http://localhost:8000/health
 ### Complete Workflow
 
 ```bash
-# 1. Set up environment
+# 1. Using Makefile (easiest)
+make test
+make scrape
+
+# 2. Or with Docker
+make docker-run
+
+# 3. Manual workflow
 source venv/bin/activate
 export PYTHONPATH=/home/thari/office/web-scraper
-
-# 2. Scrape a website (with multithreading for speed)
 python src/cli.py https://example.com --max-pages 20 --max-workers 15
 
-# 3. Interactive querying
+# 4. Interactive querying
 python src/cli.py https://example.com --interactive
 
-# 4. Ask questions
+# 5. Ask questions
 > What products do they sell?
 > What are their contact details?
 > What are the price ranges?
 > Do they have any special offers?
 ```
 
-### Multithreading Performance Test
 
-```bash
-# Test performance with different worker counts
-PYTHONPATH=/home/thari/office/web-scraper python test_multithreading.py
-
-# This will test scraping with 1, 5, 10, and 20 workers
-# and show the performance improvement
-```
 
 ### API Workflow
 
