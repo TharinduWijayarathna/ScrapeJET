@@ -52,7 +52,7 @@ make docker-run
 ```bash
 # Clone the repository
 git clone https://github.com/TharinduWijayarathna/ScrapeJET.git
-cd web-scraper
+cd ScrapeJET
 
 # Create virtual environment
 python -m venv venv
