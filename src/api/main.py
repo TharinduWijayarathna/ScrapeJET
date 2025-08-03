@@ -5,6 +5,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, HttpUrl
 from loguru import logger
 import uvicorn
@@ -24,12 +25,10 @@ from src.rag.llm_interface import OpenAIInterface, BedrockInterface, RAGSystem
 
 # Pydantic models
 class ScrapeRequest(BaseModel):
-    url: HttpUrl
-    max_pages: int = 100
-    max_workers: int = 10
-    output_format: str = "both"  # "json", "markdown", "both"
-    llm_provider: str = "openai"  # "openai" or "bedrock"
-    llm_model: Optional[str] = None
+    url: str
+    max_pages: int = 50
+    max_workers: int = 5
+    output_format: str = "json"
 
 
 class QueryRequest(BaseModel):
@@ -42,25 +41,29 @@ class ScrapeResponse(BaseModel):
     message: str
     files: Dict[str, str]
     total_pages: int
+    optimization_stats: Dict[str, Any] = {}
 
 
 class QueryResponse(BaseModel):
     answer: str
     context: List[Dict[str, Any]]
     site_name: Optional[str] = None
-
-
-class SiteInfo(BaseModel):
-    site_name: str
-    total_chunks: int
-    unique_chunks: int
-    duplicate_chunks: int
-    deduplication_ratio: float
+    conversation_id: Optional[str] = None
 
 
 class SitesResponse(BaseModel):
     sites: List[str]
-    statistics: Dict[str, SiteInfo]
+    stats: Dict[str, Dict[str, Any]]
+
+
+class ConversationResponse(BaseModel):
+    history: List[Dict[str, str]]
+    total_messages: int
+
+
+class CacheResponse(BaseModel):
+    cached_queries: int
+    cache_size: int
 
 
 # Global variables
@@ -124,8 +127,7 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Web Scraper with RAG",
-    description="A comprehensive web scraper with RAG capabilities",
+    title="Web Scraper API",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -140,16 +142,38 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the application"""
+    global rag_system
+    try:
+        # Initialize RAG system on first use instead of startup
+        logger.info("API startup complete - RAG system will be initialized on first scrape")
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown"""
+    logger.info("API shutting down")
+
+
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {
-        "message": "Web Scraper with RAG API",
+        "message": "Web Scraper API",
         "version": "1.0.0",
         "endpoints": {
-            "scrape": "/scrape",
-            "query": "/query",
-            "health": "/health"
+            "scrape": "POST /scrape",
+            "query": "POST /query",
+            "sites": "GET /sites",
+            "health": "GET /health",
+            "conversation": "GET /conversation",
+            "clear_conversation": "DELETE /conversation",
+            "cache_stats": "GET /cache/stats",
+            "clear_cache": "DELETE /cache",
+            "optimization_stats": "GET /optimization/stats"
         }
     }
 
@@ -162,53 +186,67 @@ async def health_check():
 
 @app.post("/scrape", response_model=ScrapeResponse)
 async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTasks):
-    """Scrape a website and store data for RAG"""
-    global current_data, rag_system
+    """Scrape a website and optionally add to RAG system with automatic optimization"""
+    global rag_system
     
     try:
-        # Initialize RAG system if needed
-        if rag_system is None:
-            initialize_rag_system(request.llm_provider, request.llm_model)
-            # Check if initialization was successful
-            if rag_system is None:
-                logger.warning("RAG system initialization failed, continuing with scraping only")
-        
-        # Create scraper
+        # Initialize scraper
         scraper = UniversalScraper(
-            base_url=str(request.url),
+            base_url=request.url,
             max_pages=request.max_pages,
             max_workers=request.max_workers
         )
         
-        # Scrape the website
-        logger.info(f"Starting to scrape {request.url}")
-        data = await scraper.scrape_site()
+        # Scrape the website (synchronous method with optimization)
+        data = scraper.scrape_site()
         
-        # Save data
-        domain = str(request.url).replace("://", "_").replace("/", "_").replace(".", "_")
-        filename = f"scraped_{domain}"
+        # Get optimization statistics
+        optimization_stats = scraper.get_optimization_stats()
+        logger.info(f"Optimization stats: {optimization_stats}")
         
+        # Save data to files
         saved_files = {}
-        
-        if request.output_format in ["json", "both"]:
+        if data:
+            # Generate filename based on URL
+            domain = request.url.replace("://", "_").replace("/", "_").replace(".", "_")
+            filename = f"scraped_{domain}"
+            
+            # Save as JSON
             scraper.save_to_json(data, filename)
             saved_files['json'] = str(scraper.output_dir / f"{filename}.json")
+            
+            # Save optimization stats
+            stats_file = scraper.output_dir / f"{filename}_optimization_stats.json"
+            with open(stats_file, 'w') as f:
+                json.dump(optimization_stats, f, indent=2)
+            saved_files['optimization_stats'] = str(stats_file)
         
-        if request.output_format in ["markdown", "both"]:
-            scraper.save_to_markdown(data, filename)
-            saved_files['markdown'] = str(scraper.output_dir / f"{filename}.md")
+        # Initialize RAG system if not already done
+        if rag_system is None:
+            initialize_rag_system()
         
-        # Add to RAG system if available
-        current_data = data
-        if rag_system is not None:
-            rag_system.add_documents(data)
-        else:
-            logger.info("RAG system not available - skipping document addition")
+        # Add documents to RAG system if available
+        if rag_system is not None and data:
+            try:
+                rag_system.add_documents(data)
+                logger.info(f"Added {len(data)} documents to RAG system")
+            except Exception as e:
+                logger.error(f"Error adding documents to RAG system: {e}")
         
+        response_data = {
+            "message": f"Successfully scraped {len(data)} pages from {request.url} with {optimization_stats.get('optimization_ratio', 0):.1f}% optimization",
+            "files": saved_files,
+            "total_pages": len(data),
+            "optimization_stats": optimization_stats
+        }
+        logger.info(f"Response data: {response_data}")
+        
+        # Return proper ScrapeResponse with optimization stats
         return ScrapeResponse(
-            message=f"Successfully scraped {len(data)} pages from {request.url}",
-            files=saved_files,
-            total_pages=len(data)
+            message=response_data["message"],
+            files=response_data["files"],
+            total_pages=response_data["total_pages"],
+            optimization_stats=response_data["optimization_stats"]
         )
         
     except Exception as e:
@@ -218,7 +256,7 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
 
 @app.post("/query", response_model=QueryResponse)
 async def query_rag(request: QueryRequest):
-    """Query the RAG system, optionally for a specific site"""
+    """Query the RAG system with enhanced features"""
     global rag_system
     
     if rag_system is None:
@@ -252,77 +290,39 @@ async def get_sites():
     global rag_system
     
     if rag_system is None:
-        raise HTTPException(status_code=400, detail="RAG system not initialized. Please scrape a website first.")
+        return SitesResponse(sites=[], stats={})
     
     try:
         sites = rag_system.get_sites()
-        statistics = rag_system.get_all_sites_stats()
+        stats = rag_system.get_all_sites_stats()
         
-        # Convert statistics to SiteInfo objects
-        site_info = {}
-        for site_name, stats in statistics.items():
-            if 'error' not in stats:
-                site_info[site_name] = SiteInfo(
-                    site_name=site_name,
-                    total_chunks=stats.get('total_chunks', 0),
-                    unique_chunks=stats.get('unique_chunks', 0),
-                    duplicate_chunks=stats.get('duplicate_chunks', 0),
-                    deduplication_ratio=stats.get('deduplication_ratio', 0.0)
-                )
-        
-        return SitesResponse(
-            sites=sites,
-            statistics=site_info
-        )
+        return SitesResponse(sites=sites, stats=stats)
         
     except Exception as e:
         logger.error(f"Error getting sites: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/sites/{site_name}/stats")
-async def get_site_stats(site_name: str):
-    """Get statistics for a specific site"""
-    global rag_system
-    
-    if rag_system is None:
-        raise HTTPException(status_code=400, detail="RAG system not initialized. Please scrape a website first.")
-    
-    try:
-        stats = rag_system.get_site_stats(site_name)
-        
-        if 'error' in stats:
-            raise HTTPException(status_code=404, detail=stats['error'])
-        
-        return stats
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting site stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.delete("/sites/{site_name}")
 async def clear_site(site_name: str):
-    """Clear a specific site from the vector store"""
+    """Clear all documents for a specific site"""
     global rag_system
     
     if rag_system is None:
-        raise HTTPException(status_code=400, detail="RAG system not initialized.")
+        raise HTTPException(status_code=400, detail="No RAG system available.")
     
     try:
         rag_system.clear_site(site_name)
-        return {"message": f"Site '{site_name}' cleared successfully"}
+        return {"message": f"Cleared all documents for site: {site_name}"}
         
     except Exception as e:
-        logger.error(f"Error clearing site: {e}")
+        logger.error(f"Error clearing site {site_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/query/site/{site_name}")
 async def query_site_specific(site_name: str, request: QueryRequest):
-    """Query a specific site"""
+    """Query a specific site with enhanced features"""
     global rag_system
     
     if rag_system is None:
@@ -350,68 +350,198 @@ async def query_site_specific(site_name: str, request: QueryRequest):
 @app.get("/data/status")
 async def get_data_status():
     """Get status of current data"""
-    global current_data, rag_system
-    
-    return {
-        "data_loaded": len(current_data) > 0,
-        "total_pages": len(current_data),
-        "rag_system_initialized": rag_system is not None
-    }
-
-
-@app.delete("/data/clear")
-async def clear_data():
-    """Clear all data and reset RAG system"""
-    global current_data, rag_system
-    
-    try:
-        if rag_system:
-            rag_system.vector_store.clear()
-        current_data = []
-        
-        return {"message": "Data cleared successfully"}
-        
-    except Exception as e:
-        logger.error(f"Error clearing data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/rag/reinitialize")
-async def reinitialize_rag(request: ScrapeRequest):
-    """Reinitialize RAG system with different LLM provider"""
     global rag_system
     
+    if rag_system is None:
+        return {"status": "no_rag_system", "message": "RAG system not initialized"}
+    
     try:
-        initialize_rag_system(request.llm_provider, request.llm_model)
-        return {"message": f"RAG system reinitialized with {request.llm_provider}"}
+        sites = rag_system.get_sites()
+        stats = rag_system.get_all_sites_stats()
+        
+        return {
+            "status": "available",
+            "sites": sites,
+            "stats": stats,
+            "total_sites": len(sites)
+        }
         
     except Exception as e:
-        logger.error(f"Error reinitializing RAG: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting data status: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/data/optimization")
 async def get_optimization_stats():
-    """Get vector store optimization statistics"""
+    """Get optimization statistics"""
+    global rag_system
+    
+    if rag_system is None:
+        return {"message": "No RAG system available"}
+    
     try:
-        if rag_system and rag_system.vector_store:
-            stats = rag_system.vector_store.get_optimization_stats()
-            return {
-                "status": "success",
-                "optimization_stats": stats,
-                "message": f"Storage efficiency: {stats['storage_efficiency']}%, Deduplication ratio: {stats['deduplication_ratio']}%"
-            }
-        else:
-            return {
-                "status": "error",
-                "message": "RAG system not available"
-            }
+        stats = rag_system.get_all_sites_stats()
+        
+        # Calculate overall optimization metrics
+        total_chunks = 0
+        total_unique = 0
+        
+        for site_stats in stats.values():
+            if 'total_chunks' in site_stats:
+                total_chunks += site_stats['total_chunks']
+            if 'unique_chunks' in site_stats:
+                total_unique += site_stats['unique_chunks']
+        
+        overall_deduplication = round((total_chunks - total_unique) / max(total_chunks, 1) * 100, 2)
+        
+        return {
+            "overall_stats": {
+                "total_chunks": total_chunks,
+                "unique_chunks": total_unique,
+                "duplicate_chunks": total_chunks - total_unique,
+                "deduplication_ratio": overall_deduplication
+            },
+            "site_stats": stats
+        }
+        
     except Exception as e:
         logger.error(f"Error getting optimization stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/optimization/stats")
+async def get_scrape_optimization_stats():
+    """Get optimization statistics from the last scrape"""
+    global rag_system
+    
+    if rag_system is None:
+        return {"message": "No RAG system available"}
+    
+    try:
+        # This endpoint is primarily for the frontend to show optimization stats
+        # from the last scrape, not the current optimization stats of the RAG system.
+        # For that, use /data/optimization.
+        # This endpoint is a placeholder to expose the optimization stats directly.
+        # In a real scenario, you might need to store these stats in a global variable
+        # or pass them from the scraper to the API.
+        # For now, we'll return a placeholder or raise an error if no data is available.
+        # A more robust solution would involve a global variable or a shared state.
+        
+        # Example: If you want to expose the last scrape's optimization stats
+        # from the RAG system's state, you'd need to store it.
+        # For now, we'll return a placeholder.
+        return {"message": "Optimization stats from last scrape are not directly available in this endpoint. Use /data/optimization for current stats."}
+        
+    except Exception as e:
+        logger.error(f"Error getting scrape optimization stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/conversation", response_model=ConversationResponse)
+async def get_conversation_history():
+    """Get conversation history"""
+    global rag_system
+    
+    if rag_system is None:
+        return ConversationResponse(history=[], total_messages=0)
+    
+    try:
+        history = rag_system.get_conversation_history()
+        return ConversationResponse(
+            history=history,
+            total_messages=len(history)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting conversation history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/conversation")
+async def clear_conversation_history():
+    """Clear conversation history"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="No RAG system available.")
+    
+    try:
+        rag_system.clear_conversation_history()
+        return {"message": "Conversation history cleared successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error clearing conversation history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/cache/stats", response_model=CacheResponse)
+async def get_cache_stats():
+    """Get cache statistics"""
+    global rag_system
+    
+    if rag_system is None:
+        return CacheResponse(cached_queries=0, cache_size=0)
+    
+    try:
+        cache = rag_system.query_cache
+        return CacheResponse(
+            cached_queries=len(cache),
+            cache_size=len(cache)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/cache")
+async def clear_cache():
+    """Clear query cache"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="No RAG system available.")
+    
+    try:
+        rag_system.query_cache.clear()
+        return {"message": "Query cache cleared successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/query/enhanced")
+async def enhanced_query(request: QueryRequest):
+    """Enhanced query with conversation context and better filtering"""
+    global rag_system
+    
+    if rag_system is None:
+        raise HTTPException(status_code=400, detail="No data available. Please scrape a website first.")
+    
+    try:
+        # Get conversation history for context
+        history = rag_system.get_conversation_history()
+        
+        # Get answer with enhanced features
+        if request.site_name:
+            answer = rag_system.query_site_specific(request.question, request.site_name, request.n_results)
+            context = rag_system.get_relevant_context(request.question, request.n_results, request.site_name)
+        else:
+            answer = rag_system.query(request.question, request.n_results)
+            context = rag_system.get_relevant_context(request.question, request.n_results)
+        
         return {
-            "status": "error",
-            "message": f"Error retrieving optimization statistics: {str(e)}"
+            "answer": answer,
+            "context": context,
+            "site_name": request.site_name,
+            "conversation_length": len(history),
+            "cache_hit": len(rag_system.query_cache) > 0
         }
+        
+    except Exception as e:
+        logger.error(f"Error in enhanced query: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
