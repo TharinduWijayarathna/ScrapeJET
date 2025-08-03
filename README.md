@@ -37,8 +37,8 @@ A powerful, multithreaded web scraper with intelligent RAG (Retrieval-Augmented 
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd web-scraper
+git clone https://github.com/TharinduWijayarathna/ScrapeJET.git
+cd ScrapeJET
 
 # Start the API server
 docker-compose up -d
