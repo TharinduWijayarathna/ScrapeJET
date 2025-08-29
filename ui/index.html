@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ScrapeJET - Web Scraper with RAG</title>
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+            rel="stylesheet"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div class="container">
+            <!-- Header -->
+            <header class="header">
+                <div class="logo">
+                    <i class="fas fa-spider"></i>
+                    <h1>ScrapeJET</h1>
+                    <span class="version">v2.0</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </header>
+
+            <!-- Navigation -->
+            <nav class="nav-tabs">
+                <button class="tab-btn active" data-tab="scraper">
+                    <i class="fas fa-spider"></i>
+                    Scraper
+                </button>
+                <button class="tab-btn" data-tab="query">
+                    <i class="fas fa-search"></i>
+                    Query RAG
+                </button>
+                <button class="tab-btn" data-tab="sites">
+                    <i class="fas fa-globe"></i>
+                    Sites
+                </button>
+                <button class="tab-btn" data-tab="analytics">
+                    <i class="fas fa-chart-bar"></i>
+                    Analytics
+                </button>
+            </nav>
+
+            <!-- Scraper Tab -->
+            <div class="tab-content active" id="scraper">
+                <div class="card">
+                    <h2><i class="fas fa-spider"></i> Web Scraper</h2>
+                    <form id="scrapeForm" class="form-grid">
+                        <div class="input-group">
+                            <label for="scrapeUrl">Website URL</label>
+                            <input
+                                type="url"
+                                id="scrapeUrl"
+                                placeholder="https://example.com"
+                                required
+                            />
+                            <small
+                                >Enter the website URL you want to scrape</small
+                            >
+                        </div>
+
+                        <div class="input-group">
+                            <label for="expectedPages">Expected Pages</label>
+                            <input
+                                type="number"
+                                id="expectedPages"
+                                value="50"
+                                min="1"
+                                max="1000"
+                            />
+                            <small>Estimated number of pages to scrape</small>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="outputFormat">Output Format</label>
+                            <select id="outputFormat">
+                                <option value="json">JSON</option>
+                                <option value="csv">CSV</option>
+                                <option value="xml">XML</option>
+                            </select>
+                        </div>
+
+                        <div class="button-group">
+                            <button
+                                type="submit"
+                                class="btn-primary"
+                                id="scrapeBtn"
+                            >
+                                <i class="fas fa-play"></i>
+                                Start Scraping
+                            </button>
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                id="stopScrapeBtn"
+                                style="display: none"
+                            >
+                                <i class="fas fa-stop"></i>
+                                Stop
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Progress Section -->
+                    <div
+                        class="progress-section"
+                        id="scrapeProgress"
+                        style="display: none"
+                    >
+                        <div class="progress-header">
+                            <h3>Scraping Progress</h3>
+                            <span class="progress-text" id="scrapeProgressText"
+                                >Starting...</span
+                            >
+                        </div>
+                        <div class="progress-bar">
+                            <div
+                                class="progress-fill"
+                                id="scrapeProgressFill"
+                            ></div>
+                        </div>
+                        <div class="progress-stats">
+                            <div class="stat">
+                                <span class="stat-label">Pages Found:</span>
+                                <span class="stat-value" id="pagesFound"
+                                    >0</span
+                                >
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Processing:</span>
+                                <span class="stat-value" id="currentPage"
+                                    >-</span
+                                >
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Time Elapsed:</span>
+                                <span class="stat-value" id="timeElapsed"
+                                    >0s</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Section -->
+                    <div
+                        class="results-section"
+                        id="scrapeResults"
+                        style="display: none"
+                    >
+                        <h3>Scraping Results</h3>
+                        <div class="result-grid">
+                            <div class="result-card">
+                                <i class="fas fa-file-alt"></i>
+                                <h4>Total Pages</h4>
+                                <span class="result-number" id="totalPages"
+                                    >0</span
+                                >
+                            </div>
+                            <div class="result-card">
+                                <i class="fas fa-download"></i>
+                                <h4>Files Created</h4>
+                                <span class="result-number" id="filesCreated"
+                                    >0</span
+                                >
+                            </div>
+                            <div class="result-card">
+                                <i class="fas fa-clock"></i>
+                                <h4>Duration</h4>
+                                <span class="result-number" id="totalDuration"
+                                    >0s</span
+                                >
+                            </div>
+                        </div>
+                        <div class="result-files" id="resultFiles"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Query Tab -->
+            <div class="tab-content" id="query">
+                <div class="card">
+                    <h2><i class="fas fa-search"></i> RAG Query System</h2>
+                    <form id="queryForm" class="form-grid">
+                        <div class="input-group">
+                            <label for="queryQuestion">Your Question</label>
+                            <textarea
+                                id="queryQuestion"
+                                rows="3"
+                                placeholder="What products are available? What are the Samsung phone prices?"
+                                required
+                            ></textarea>
+                            <small>Ask anything about the scraped data</small>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="querySite"
+                                >Target Site (Optional)</label
+                            >
+                            <select id="querySite">
+                                <option value="">All Sites</option>
+                            </select>
+                            <small
+                                >Leave empty to search across all scraped
+                                sites</small
+                            >
+                        </div>
+
+                        <div class="input-group">
+                            <label for="queryNumResults"
+                                >Number of Results</label
+                            >
+                            <input
+                                type="number"
+                                id="queryNumResults"
+                                value="5"
+                                min="1"
+                                max="20"
+                            />
+                            <small>How many relevant chunks to retrieve</small>
+                        </div>
+
+                        <div class="button-group">
+                            <button
+                                type="submit"
+                                class="btn-primary"
+                                id="queryBtn"
+                            >
+                                <i class="fas fa-search"></i>
+                                Ask Question
+                            </button>
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                id="clearQueryBtn"
+                            >
+                                <i class="fas fa-trash"></i>
+                                Clear
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Query Progress -->
+                    <div
+                        class="progress-section"
+                        id="queryProgress"
+                        style="display: none"
+                    >
+                        <div class="progress-header">
+                            <h3>Processing Query</h3>
+                            <span class="progress-text"
+                                >Searching through scraped data...</span
+                            >
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill query-progress"></div>
+                        </div>
+                    </div>
+
+                    <!-- Query Results -->
+                    <div
+                        class="query-results"
+                        id="queryResults"
+                        style="display: none"
+                    >
+                        <h3>Answer</h3>
+                        <div class="answer-box" id="answerBox"></div>
+
+                        <h3>Relevant Context</h3>
+                        <div class="context-list" id="contextList"></div>
+                    </div>
+                </div>
+
+                <!-- Quick Questions -->
+                <div class="card">
+                    <h3><i class="fas fa-lightning"></i> Quick Questions</h3>
+                    <div class="quick-questions">
+                        <button
+                            class="quick-btn"
+                            data-question="What products are available?"
+                        >
+                            What products are available?
+                        </button>
+                        <button
+                            class="quick-btn"
+                            data-question="What are the price ranges?"
+                        >
+                            What are the price ranges?
+                        </button>
+                        <button
+                            class="quick-btn"
+                            data-question="Show me mobile phones"
+                        >
+                            Show me mobile phones
+                        </button>
+                        <button
+                            class="quick-btn"
+                            data-question="What categories exist?"
+                        >
+                            What categories exist?
+                        </button>
+                        <button
+                            class="quick-btn"
+                            data-question="List all brands"
+                        >
+                            List all brands
+                        </button>
+                        <button
+                            class="quick-btn"
+                            data-question="What's on discount?"
+                        >
+                            What's on discount?
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sites Tab -->
+            <div class="tab-content" id="sites">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-globe"></i> Scraped Sites</h2>
+                        <button class="btn-secondary" id="refreshSitesBtn">
+                            <i class="fas fa-sync"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="sites-grid" id="sitesGrid">
+                        <div class="loading-spinner" id="sitesLoading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Loading sites...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div class="tab-content" id="analytics">
+                <div class="card">
+                    <h2><i class="fas fa-chart-bar"></i> System Analytics</h2>
+                    <div class="analytics-grid">
+                        <div class="analytics-card">
+                            <h3>Total Statistics</h3>
+                            <div class="stat-row">
+                                <span>Total Sites:</span>
+                                <span id="totalSites">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Total Pages:</span>
+                                <span id="totalPagesAnalytics">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Total Products:</span>
+                                <span id="totalProducts">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Vector Chunks:</span>
+                                <span id="totalChunks">0</span>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card">
+                            <h3>Recent Activity</h3>
+                            <div class="activity-list" id="activityList">
+                                <div class="activity-item">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>No recent activity</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toast Notifications -->
+            <div class="toast-container" id="toastContainer"></div>
+
+            <!-- Loading Overlay -->
+            <div
+                class="loading-overlay"
+                id="loadingOverlay"
+                style="display: none"
+            >
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Processing...</p>
+                </div>
+            </div>
+        </div>
+
+        <script src="script.js"></script>
+    </body>
+</html>
