@@ -21,7 +21,11 @@ load_dotenv()
 
 # Import our modules
 import sys
-sys.path.append('/app')
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.scraper.universal_scraper import UniversalScraper
 from src.rag.vector_store import VectorStore
@@ -74,7 +78,7 @@ current_data = []
 def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str] = None):
     """Initialize the RAG system"""
     global rag_system
-    
+
     try:
         # Check if API key is available
         api_key = os.getenv("OPENAI_API_KEY")
@@ -82,13 +86,13 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
             logger.error("OpenAI API key not found in environment variables")
             rag_system = None
             return
-        
+
         logger.info(f"Initializing RAG system with {llm_provider}")
-        
+
         # Initialize vector store
         vector_store = VectorStore()
         logger.info("Vector store initialized successfully")
-        
+
         # Initialize LLM interface
         if llm_provider == "openai":
             llm_interface = OpenAIInterface(model=llm_model or "gpt-3.5-turbo")
@@ -96,13 +100,13 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
             llm_interface = BedrockInterface(model_id=llm_model or "anthropic.claude-v2")
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider}")
-        
+
         logger.info("LLM interface initialized successfully")
-        
+
         # Initialize RAG system
         rag_system = RAGSystem(vector_store, llm_interface)
         logger.info("RAG system initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Error initializing RAG system: {e}")
         rag_system = None
@@ -163,33 +167,33 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
     """Scrape a website"""
     try:
         logger.info(f"Starting scrape of {request.url}")
-        
+
         # Initialize scraper with expected pages
         scraper = UniversalScraper(base_url=request.url, expected_pages=request.expected_pages)
-        
+
         # Scrape the site
         data = scraper.scrape_site()
-        
+
         # Save data
         saved_files = scraper.scrape_and_save(request.output_format)
-        
+
         # Add to RAG system if available
         if rag_system and data:
             background_tasks.add_task(rag_system.add_documents, data)
-        
+
         # Update global data
         global current_data
         current_data.extend(data)
-        
+
         stats = scraper.get_optimization_stats()
-        
+
         return ScrapeResponse(
             message=f"Successfully scraped {len(data)} pages from {request.url}",
             files=saved_files,
             total_pages=len(data),
             stats=stats
         )
-        
+
     except Exception as e:
         logger.error(f"Error scraping {request.url}: {e}")
         raise HTTPException(status_code=500, detail=f"Scraping failed: {str(e)}")
@@ -200,31 +204,31 @@ async def query_rag(request: QueryRequest):
     """Query scraped data using RAG"""
     if not rag_system:
         raise HTTPException(status_code=503, detail="RAG system not available")
-    
+
     try:
         # Query the RAG system
         if request.site_name:
             # Site-specific query
             answer = rag_system.query_site_specific(
-                request.question, 
-                request.site_name, 
+                request.question,
+                request.site_name,
                 n_results=request.n_results
             )
             context = rag_system.get_relevant_context(request.question, request.n_results, request.site_name)
         else:
             # General query across all sites
             answer = rag_system.query(
-                request.question, 
+                request.question,
                 n_results=request.n_results
             )
             context = rag_system.get_relevant_context(request.question, request.n_results)
-        
+
         return QueryResponse(
             answer=answer,
             context=context,
             site_name=request.site_name
         )
-        
+
     except Exception as e:
         logger.error(f"Error querying RAG: {e}")
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
@@ -235,17 +239,17 @@ async def get_sites():
     """Get list of available sites and their statistics"""
     if not rag_system:
         return SitesResponse(sites=[], stats={})
-    
+
     try:
         sites = rag_system.get_sites()
         stats = {}
-        
+
         for site in sites:
             site_stats = rag_system.get_site_stats(site)
             stats[site] = site_stats
-        
+
         return SitesResponse(sites=sites, stats=stats)
-        
+
     except Exception as e:
         logger.error(f"Error getting sites: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get sites: {str(e)}")
@@ -256,11 +260,11 @@ async def clear_site(site_name: str):
     """Clear data for a specific site"""
     if not rag_system:
         raise HTTPException(status_code=503, detail="RAG system not available")
-    
+
     try:
         rag_system.clear_site(site_name)
         return {"message": f"Cleared data for site: {site_name}"}
-        
+
     except Exception as e:
         logger.error(f"Error clearing site {site_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to clear site: {str(e)}")
@@ -271,7 +275,7 @@ async def ask_site_specific(request: SiteQueryRequest):
     """Ask questions about a specific site with advanced filtering"""
     if not rag_system:
         raise HTTPException(status_code=503, detail="RAG system not available")
-    
+
     try:
         # Query the RAG system for specific site with filters
         answer = rag_system.query_site_specific(
@@ -280,13 +284,13 @@ async def ask_site_specific(request: SiteQueryRequest):
             n_results=request.n_results
         )
         context = rag_system.get_relevant_context(request.question, request.n_results, request.site_name)
-        
+
         return QueryResponse(
             answer=answer,
             context=context,
             site_name=request.site_name
         )
-        
+
     except Exception as e:
         logger.error(f"Error querying site {request.site_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
@@ -297,14 +301,14 @@ async def get_site_info(site_name: str):
     """Get detailed information about a specific site"""
     if not rag_system:
         raise HTTPException(status_code=503, detail="RAG system not available")
-    
+
     try:
         site_info = rag_system.get_site_detailed_info(site_name)
         return {
             "site_name": site_name,
             "info": site_info
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting site info for {site_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get site info: {str(e)}")
@@ -315,7 +319,7 @@ async def get_site_pages(site_name: str, page_type: Optional[str] = None):
     """Get pages from a specific site with optional filtering"""
     if not rag_system:
         raise HTTPException(status_code=503, detail="RAG system not available")
-    
+
     try:
         pages = rag_system.get_site_pages(site_name, page_type=page_type)
         return {
@@ -323,7 +327,7 @@ async def get_site_pages(site_name: str, page_type: Optional[str] = None):
             "page_type": page_type,
             "pages": pages
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting pages for site {site_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get pages: {str(e)}")
