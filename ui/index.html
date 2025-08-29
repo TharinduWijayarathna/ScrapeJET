@@ -1,400 +1,515 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>ScrapeJET - Web Scraper with RAG</title>
-        <link
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-            rel="stylesheet"
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link rel="stylesheet" href="styles.css" />
-    </head>
-    <body>
-        <div class="container">
-            <!-- Header -->
-            <header class="header">
-                <div class="logo">
-                    <i class="fas fa-spider"></i>
-                    <h1>ScrapeJET</h1>
-                    <span class="version">v2.0</span>
-                </div>
-                <div class="status-indicator">
-                    <div class="status-dot" id="statusDot"></div>
-                    <span id="statusText">Connecting...</span>
-                </div>
-            </header>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScrapeJET Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        accent: {
+                            DEFAULT: "hsl(var(--accent))",
+                            foreground: "hsl(var(--accent-foreground))",
+                        },
+                        popover: {
+                            DEFAULT: "hsl(var(--popover))",
+                            foreground: "hsl(var(--popover-foreground))",
+                        },
+                        card: {
+                            DEFAULT: "hsl(var(--card))",
+                            foreground: "hsl(var(--card-foreground))",
+                        },
+                    },
+                    borderRadius: {
+                        lg: "var(--radius)",
+                        md: "calc(var(--radius) - 2px)",
+                        sm: "calc(var(--radius) - 4px)",
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96%;
+            --secondary-foreground: 222.2 84% 4.9%;
+            --muted: 210 40% 96%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --accent: 210 40% 96%;
+            --accent-foreground: 222.2 84% 4.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
 
-            <!-- Navigation -->
-            <nav class="nav-tabs">
-                <button class="tab-btn active" data-tab="scraper">
-                    <i class="fas fa-spider"></i>
-                    Scraper
+        .dark {
+            --background: 222.2 84% 4.9%;
+            --foreground: 210 40% 98%;
+            --card: 222.2 84% 4.9%;
+            --card-foreground: 210 40% 98%;
+            --popover: 222.2 84% 4.9%;
+            --popover-foreground: 210 40% 98%;
+            --primary: 210 40% 98%;
+            --primary-foreground: 222.2 47.4% 11.2%;
+            --secondary: 217.2 32.6% 17.5%;
+            --secondary-foreground: 210 40% 98%;
+            --muted: 217.2 32.6% 17.5%;
+            --muted-foreground: 215 20.2% 65.1%;
+            --accent: 217.2 32.6% 17.5%;
+            --accent-foreground: 210 40% 98%;
+            --destructive: 0 62.8% 30.6%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 217.2 32.6% 17.5%;
+            --input: 217.2 32.6% 17.5%;
+            --ring: 212.7 26.8% 83.9%;
+        }
+
+        * {
+            border-color: hsl(var(--border));
+        }
+
+        body {
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .card-hover {
+            transition: all 0.2s ease-in-out;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(240, 147, 251, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen bg-gray-50">
+        <!-- Sidebar -->
+        <div id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform -translate-x-full lg:translate-x-0">
+            <div class="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-rocket text-white text-sm"></i>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-900">ScrapeJET</h1>
+                </div>
+                <button id="closeSidebar" class="lg:hidden text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-lg"></i>
                 </button>
-                <button class="tab-btn" data-tab="query">
-                    <i class="fas fa-search"></i>
-                    Query RAG
-                </button>
-                <button class="tab-btn" data-tab="sites">
-                    <i class="fas fa-globe"></i>
-                    Sites
-                </button>
-                <button class="tab-btn" data-tab="analytics">
-                    <i class="fas fa-chart-bar"></i>
-                    Analytics
-                </button>
+            </div>
+
+            <nav class="mt-6 px-4">
+                <div class="space-y-2">
+                    <button class="nav-item w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 bg-blue-50 text-blue-700 border border-blue-200" data-tab="scraper">
+                        <i class="fas fa-spider mr-3 text-blue-600"></i>
+                        Web Scraper
+                    </button>
+                    <button class="nav-item w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-700 hover:bg-gray-100" data-tab="query">
+                        <i class="fas fa-search mr-3 text-gray-500"></i>
+                        AI Query
+                    </button>
+                    <button class="nav-item w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-700 hover:bg-gray-100" data-tab="sites">
+                        <i class="fas fa-globe mr-3 text-gray-500"></i>
+                        Scraped Sites
+                    </button>
+                    <button class="nav-item w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-700 hover:bg-gray-100" data-tab="analytics">
+                        <i class="fas fa-chart-bar mr-3 text-gray-500"></i>
+                        Analytics
+                    </button>
+                </div>
             </nav>
 
-            <!-- Scraper Tab -->
-            <div class="tab-content active" id="scraper">
-                <div class="card">
-                    <h2><i class="fas fa-spider"></i> Web Scraper</h2>
-                    <form id="scrapeForm" class="form-grid">
-                        <div class="input-group">
-                            <label for="scrapeUrl">Website URL</label>
-                            <input
-                                type="url"
-                                id="scrapeUrl"
-                                placeholder="https://example.com"
-                                required
-                            />
-                            <small
-                                >Enter the website URL you want to scrape</small
-                            >
-                        </div>
-
-                        <div class="input-group">
-                            <label for="expectedPages">Expected Pages</label>
-                            <input
-                                type="number"
-                                id="expectedPages"
-                                value="50"
-                                min="1"
-                                max="1000"
-                            />
-                            <small>Estimated number of pages to scrape</small>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="outputFormat">Output Format</label>
-                            <select id="outputFormat">
-                                <option value="json">JSON</option>
-                                <option value="csv">CSV</option>
-                                <option value="xml">XML</option>
-                            </select>
-                        </div>
-
-                        <div class="button-group">
-                            <button
-                                type="submit"
-                                class="btn-primary"
-                                id="scrapeBtn"
-                            >
-                                <i class="fas fa-play"></i>
-                                Start Scraping
-                            </button>
-                            <button
-                                type="button"
-                                class="btn-secondary"
-                                id="stopScrapeBtn"
-                                style="display: none"
-                            >
-                                <i class="fas fa-stop"></i>
-                                Stop
-                            </button>
-                        </div>
-                    </form>
-
-                    <!-- Progress Section -->
-                    <div
-                        class="progress-section"
-                        id="scrapeProgress"
-                        style="display: none"
-                    >
-                        <div class="progress-header">
-                            <h3>Scraping Progress</h3>
-                            <span class="progress-text" id="scrapeProgressText"
-                                >Starting...</span
-                            >
-                        </div>
-                        <div class="progress-bar">
-                            <div
-                                class="progress-fill"
-                                id="scrapeProgressFill"
-                            ></div>
-                        </div>
-                        <div class="progress-stats">
-                            <div class="stat">
-                                <span class="stat-label">Pages Found:</span>
-                                <span class="stat-value" id="pagesFound"
-                                    >0</span
-                                >
-                            </div>
-                            <div class="stat">
-                                <span class="stat-label">Processing:</span>
-                                <span class="stat-value" id="currentPage"
-                                    >-</span
-                                >
-                            </div>
-                            <div class="stat">
-                                <span class="stat-label">Time Elapsed:</span>
-                                <span class="stat-value" id="timeElapsed"
-                                    >0s</span
-                                >
-                            </div>
-                        </div>
+            <!-- Status Section -->
+            <div class="absolute bottom-6 left-4 right-4">
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">API Status</span>
+                        <span id="apiStatus" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <span class="w-2 h-2 bg-red-400 rounded-full mr-1"></span>
+                            Offline
+                        </span>
                     </div>
-
-                    <!-- Results Section -->
-                    <div
-                        class="results-section"
-                        id="scrapeResults"
-                        style="display: none"
-                    >
-                        <h3>Scraping Results</h3>
-                        <div class="result-grid">
-                            <div class="result-card">
-                                <i class="fas fa-file-alt"></i>
-                                <h4>Total Pages</h4>
-                                <span class="result-number" id="totalPages"
-                                    >0</span
-                                >
-                            </div>
-                            <div class="result-card">
-                                <i class="fas fa-download"></i>
-                                <h4>Files Created</h4>
-                                <span class="result-number" id="filesCreated"
-                                    >0</span
-                                >
-                            </div>
-                            <div class="result-card">
-                                <i class="fas fa-clock"></i>
-                                <h4>Duration</h4>
-                                <span class="result-number" id="totalDuration"
-                                    >0s</span
-                                >
-                            </div>
-                        </div>
-                        <div class="result-files" id="resultFiles"></div>
+                    <div class="text-xs text-gray-500">
+                        Connected to localhost:8000
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Query Tab -->
-            <div class="tab-content" id="query">
-                <div class="card">
-                    <h2><i class="fas fa-search"></i> RAG Query System</h2>
-                    <form id="queryForm" class="form-grid">
-                        <div class="input-group">
-                            <label for="queryQuestion">Your Question</label>
-                            <textarea
-                                id="queryQuestion"
-                                rows="3"
-                                placeholder="What products are available? What are the Samsung phone prices?"
-                                required
-                            ></textarea>
-                            <small>Ask anything about the scraped data</small>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="querySite"
-                                >Target Site (Optional)</label
-                            >
-                            <select id="querySite">
-                                <option value="">All Sites</option>
-                            </select>
-                            <small
-                                >Leave empty to search across all scraped
-                                sites</small
-                            >
-                        </div>
-
-                        <div class="input-group">
-                            <label for="queryNumResults"
-                                >Number of Results</label
-                            >
-                            <input
-                                type="number"
-                                id="queryNumResults"
-                                value="5"
-                                min="1"
-                                max="20"
-                            />
-                            <small>How many relevant chunks to retrieve</small>
-                        </div>
-
-                        <div class="button-group">
-                            <button
-                                type="submit"
-                                class="btn-primary"
-                                id="queryBtn"
-                            >
-                                <i class="fas fa-search"></i>
-                                Ask Question
-                            </button>
-                            <button
-                                type="button"
-                                class="btn-secondary"
-                                id="clearQueryBtn"
-                            >
-                                <i class="fas fa-trash"></i>
-                                Clear
-                            </button>
-                        </div>
-                    </form>
-
-                    <!-- Query Progress -->
-                    <div
-                        class="progress-section"
-                        id="queryProgress"
-                        style="display: none"
-                    >
-                        <div class="progress-header">
-                            <h3>Processing Query</h3>
-                            <span class="progress-text"
-                                >Searching through scraped data...</span
-                            >
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill query-progress"></div>
-                        </div>
+        <!-- Main Content -->
+        <div class="flex-1 lg:ml-64">
+            <!-- Top Bar -->
+            <div class="bg-white shadow-sm border-b border-gray-200">
+                <div class="flex items-center justify-between h-16 px-6">
+                    <div class="flex items-center space-x-4">
+                        <button id="openSidebar" class="lg:hidden text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-bars text-lg"></i>
+                        </button>
+                        <h2 id="pageTitle" class="text-xl font-semibold text-gray-900">Web Scraper</h2>
                     </div>
-
-                    <!-- Query Results -->
-                    <div
-                        class="query-results"
-                        id="queryResults"
-                        style="display: none"
-                    >
-                        <h3>Answer</h3>
-                        <div class="answer-box" id="answerBox"></div>
-
-                        <h3>Relevant Context</h3>
-                        <div class="context-list" id="contextList"></div>
-                    </div>
-                </div>
-
-                <!-- Quick Questions -->
-                <div class="card">
-                    <h3><i class="fas fa-lightning"></i> Quick Questions</h3>
-                    <div class="quick-questions">
-                        <button
-                            class="quick-btn"
-                            data-question="What products are available?"
-                        >
-                            What products are available?
-                        </button>
-                        <button
-                            class="quick-btn"
-                            data-question="What are the price ranges?"
-                        >
-                            What are the price ranges?
-                        </button>
-                        <button
-                            class="quick-btn"
-                            data-question="Show me mobile phones"
-                        >
-                            Show me mobile phones
-                        </button>
-                        <button
-                            class="quick-btn"
-                            data-question="What categories exist?"
-                        >
-                            What categories exist?
-                        </button>
-                        <button
-                            class="quick-btn"
-                            data-question="List all brands"
-                        >
-                            List all brands
-                        </button>
-                        <button
-                            class="quick-btn"
-                            data-question="What's on discount?"
-                        >
-                            What's on discount?
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sites Tab -->
-            <div class="tab-content" id="sites">
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-globe"></i> Scraped Sites</h2>
-                        <button class="btn-secondary" id="refreshSitesBtn">
-                            <i class="fas fa-sync"></i>
-                            Refresh
-                        </button>
-                    </div>
-                    <div class="sites-grid" id="sitesGrid">
-                        <div class="loading-spinner" id="sitesLoading">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <p>Loading sites...</p>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            <span class="text-sm text-gray-600">Live</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Analytics Tab -->
-            <div class="tab-content" id="analytics">
-                <div class="card">
-                    <h2><i class="fas fa-chart-bar"></i> System Analytics</h2>
-                    <div class="analytics-grid">
-                        <div class="analytics-card">
-                            <h3>Total Statistics</h3>
-                            <div class="stat-row">
-                                <span>Total Sites:</span>
-                                <span id="totalSites">0</span>
+            <!-- Content Area -->
+            <div class="p-6">
+                <!-- Scraper Tab -->
+                <div id="scraper" class="tab-content">
+                    <div class="max-w-4xl mx-auto">
+                        <!-- Header -->
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-gray-900 mb-2">Web Scraper</h1>
+                            <p class="text-gray-600">Extract data from any website with AI-powered intelligence</p>
+                        </div>
+
+                        <!-- Scraper Form -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                            <form id="scrapeForm" class="space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                                            Website URL
+                                        </label>
+                                        <input type="url" id="url" name="url" required
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                            placeholder="https://example.com">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                                            Max Pages
+                                        </label>
+                                        <input type="number" id="maxPages" name="maxPages" min="1" max="1000" value="10"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <button type="submit" id="scrapeBtn"
+                                        class="btn-primary px-6 py-3 text-white font-medium rounded-lg flex items-center space-x-2">
+                                        <i class="fas fa-play"></i>
+                                        <span>Start Scraping</span>
+                                    </button>
+                                    <button type="button" id="stopScrapeBtn" style="display: none;"
+                                        class="btn-secondary px-6 py-3 text-white font-medium rounded-lg flex items-center space-x-2">
+                                        <i class="fas fa-stop"></i>
+                                        <span>Stop Scraping</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Progress Section -->
+                        <div id="progressSection" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6" style="display: none;">
+                            <div class="mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-2">Scraping Progress</h3>
+                                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div id="progressFill" class="progress-bar h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                                </div>
                             </div>
-                            <div class="stat-row">
-                                <span>Total Pages:</span>
-                                <span id="totalPagesAnalytics">0</span>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-blue-700">Current Page</span>
+                                        <span id="currentPage" class="text-lg font-bold text-blue-900">0</span>
+                                    </div>
+                                </div>
+                                <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-green-700">Pages Found</span>
+                                        <span id="pagesFound" class="text-lg font-bold text-green-900">0</span>
+                                    </div>
+                                </div>
+                                <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-purple-700">Target</span>
+                                        <span id="targetPages" class="text-lg font-bold text-purple-900">0</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="stat-row">
-                                <span>Total Products:</span>
-                                <span id="totalProducts">0</span>
-                            </div>
-                            <div class="stat-row">
-                                <span>Vector Chunks:</span>
-                                <span id="totalChunks">0</span>
+                            
+                            <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                                <p id="scrapeProgressText" class="text-sm text-gray-600">Initializing scraper...</p>
                             </div>
                         </div>
 
-                        <div class="analytics-card">
-                            <h3>Recent Activity</h3>
-                            <div class="activity-list" id="activityList">
-                                <div class="activity-item">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span>No recent activity</span>
+                        <!-- Results Section -->
+                        <div id="resultsSection" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" style="display: none;">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Scraping Results</h3>
+                            <div id="resultsContent" class="space-y-4">
+                                <!-- Results will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Query Tab -->
+                <div id="query" class="tab-content" style="display: none;">
+                    <div class="max-w-4xl mx-auto">
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-gray-900 mb-2">AI Query</h1>
+                            <p class="text-gray-600">Ask questions about your scraped data using AI</p>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                            <form id="queryForm" class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Site Filter</label>
+                                    <select id="querySite" name="site"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                                        <option value="">All Sites</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Your Question</label>
+                                    <textarea id="queryText" name="query" rows="4" required
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                                        placeholder="Ask anything about your scraped data..."></textarea>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <button type="submit"
+                                        class="btn-primary px-6 py-3 text-white font-medium rounded-lg flex items-center space-x-2">
+                                        <i class="fas fa-search"></i>
+                                        <span>Ask AI</span>
+                                    </button>
+                                    <button type="button" id="clearQueryBtn"
+                                        class="px-6 py-3 text-gray-600 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
+                                        Clear
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Quick Questions -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Questions</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <button class="quick-btn text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                    data-question="What categories exist?">
+                                    <div class="font-medium text-gray-900">What categories exist?</div>
+                                    <div class="text-sm text-gray-500 mt-1">Discover product categories</div>
+                                </button>
+                                <button class="quick-btn text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                    data-question="List all brands">
+                                    <div class="font-medium text-gray-900">List all brands</div>
+                                    <div class="text-sm text-gray-500 mt-1">Find all available brands</div>
+                                </button>
+                                <button class="quick-btn text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                    data-question="What's on discount?">
+                                    <div class="font-medium text-gray-900">What's on discount?</div>
+                                    <div class="text-sm text-gray-500 mt-1">Find discounted items</div>
+                                </button>
+                                <button class="quick-btn text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                    data-question="Show me the most expensive items">
+                                    <div class="font-medium text-gray-900">Most expensive items</div>
+                                    <div class="text-sm text-gray-500 mt-1">Find premium products</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Query Results -->
+                        <div id="queryResults" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" style="display: none;">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">AI Response</h3>
+                            <div id="queryContent" class="prose max-w-none">
+                                <!-- Query results will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sites Tab -->
+                <div id="sites" class="tab-content" style="display: none;">
+                    <div class="max-w-6xl mx-auto">
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-gray-900 mb-2">Scraped Sites</h1>
+                            <p class="text-gray-600">Manage and view your scraped websites</p>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <h2 class="text-xl font-semibold text-gray-900">Site Overview</h2>
+                                <button id="refreshSitesBtn"
+                                    class="btn-primary px-4 py-2 text-white font-medium rounded-lg flex items-center space-x-2">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span>Refresh</span>
+                                </button>
+                            </div>
+                            
+                            <div id="sitesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div id="sitesLoading" class="col-span-full flex items-center justify-center py-12">
+                                    <div class="text-center">
+                                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                        <p class="text-gray-600">Loading sites...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div id="analytics" class="tab-content" style="display: none;">
+                    <div class="max-w-6xl mx-auto">
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-gray-900 mb-2">Analytics</h1>
+                            <p class="text-gray-600">System statistics and performance metrics</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-blue-100 rounded-lg">
+                                        <i class="fas fa-globe text-blue-600 text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Total Sites</p>
+                                        <p id="totalSites" class="text-2xl font-bold text-gray-900">0</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-green-100 rounded-lg">
+                                        <i class="fas fa-file-alt text-green-600 text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Total Pages</p>
+                                        <p id="totalPagesAnalytics" class="text-2xl font-bold text-gray-900">0</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-purple-100 rounded-lg">
+                                        <i class="fas fa-box text-purple-600 text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Total Products</p>
+                                        <p id="totalProducts" class="text-2xl font-bold text-gray-900">0</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                                <div class="flex items-center">
+                                    <div class="p-3 bg-orange-100 rounded-lg">
+                                        <i class="fas fa-cube text-orange-600 text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-600">Vector Chunks</p>
+                                        <p id="totalChunks" class="text-2xl font-bold text-gray-900">0</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                            <div id="activityList" class="space-y-3">
+                                <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                                    <i class="fas fa-info-circle text-blue-500 mr-3"></i>
+                                    <span class="text-gray-600">No recent activity</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Toast Notifications -->
-            <div class="toast-container" id="toastContainer"></div>
-
-            <!-- Loading Overlay -->
-            <div
-                class="loading-overlay"
-                id="loadingOverlay"
-                style="display: none"
-            >
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Processing...</p>
-                </div>
-            </div>
         </div>
+    </div>
 
-        <script src="script.js"></script>
-    </body>
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
+        <div class="bg-white rounded-xl p-8 shadow-xl">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-600 text-center">Processing...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
 </html>

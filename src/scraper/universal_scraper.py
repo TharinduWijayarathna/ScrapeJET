@@ -35,7 +35,7 @@ from .base_scraper import BaseScraper
 class UniversalScraper(BaseScraper):
     """Super universal scraper with advanced capabilities"""
     
-    def __init__(self, base_url: str, output_dir: str = "data/raw", expected_pages: int = None):
+    def __init__(self, base_url: str, output_dir: str = "data/raw", expected_pages: int = None, progress_callback=None):
         super().__init__(base_url, output_dir)
         
         # Configuration from environment variables
@@ -49,6 +49,9 @@ class UniversalScraper(BaseScraper):
         if expected_pages is not None:
             self.max_pages = expected_pages
             logger.info(f"Setting max_pages to {expected_pages} based on expected_pages parameter")
+        
+        # Progress callback for real-time updates
+        self.progress_callback = progress_callback
         
         # Advanced scraping settings
         self.use_selenium = os.getenv("USE_SELENIUM", "true").lower() == "true"
@@ -277,6 +280,24 @@ class UniversalScraper(BaseScraper):
                 js_links = self._extract_links_from_js(script.string, current_url)
                 links.extend(js_links)
         
+        # Also check for links in href attributes of other elements
+        for element in soup.find_all(['link', 'img', 'script', 'iframe']):
+            if element.get('href'):
+                href = element['href']
+                absolute_url = urljoin(current_url, href)
+                if urlparse(absolute_url).netloc == urlparse(self.base_url).netloc:
+                    if not self._is_non_content_url(absolute_url):
+                        links.append(absolute_url)
+        
+        # Also check for data attributes that might contain URLs
+        for element in soup.find_all(attrs={'data-url': True}):
+            href = element['data-url']
+            absolute_url = urljoin(current_url, href)
+            if urlparse(absolute_url).netloc == urlparse(self.base_url).netloc:
+                if not self._is_non_content_url(absolute_url):
+                    links.append(absolute_url)
+        
+        logger.info(f"Found {len(links)} links on {current_url}")
         return list(set(links))  # Remove duplicates
     
     def _is_non_content_url(self, url: str) -> bool:
@@ -291,7 +312,14 @@ class UniversalScraper(BaseScraper):
         ]
         
         url_lower = url.lower()
-        return any(pattern in url_lower for pattern in non_content_patterns)
+        
+        # Be less aggressive - only filter out obvious non-content URLs
+        for pattern in non_content_patterns:
+            if pattern in url_lower:
+                logger.debug(f"Filtering out non-content URL: {url}")
+                return True
+        
+        return False
     
     def _extract_links_from_js(self, js_content: str, base_url: str) -> List[str]:
         """Extract URLs from JavaScript content"""
@@ -631,11 +659,18 @@ class UniversalScraper(BaseScraper):
                     logger.info(f"Worker {worker_id} received stop signal")
                     break
                 
-                # Check if already visited
+                # Check if already visited or if we've reached the page limit
                 with self._lock:
                     if url in self._visited or url in self._processing:
                         self._url_queue.task_done()
                         continue
+                    
+                    # Check if we've reached the page limit
+                    if len(self._data) >= self.max_pages:
+                        logger.info(f"Worker {worker_id} reached page limit ({self.max_pages}), stopping")
+                        self._url_queue.task_done()
+                        break
+                    
                     self._visited.add(url)
                     self._processing.add(url)
                 
@@ -657,6 +692,7 @@ class UniversalScraper(BaseScraper):
                 
                 # Extract data
                 page_data = self.extract_page_data_advanced(soup, url)
+                logger.info(f"Worker {worker_id} found {len(page_data.get('links', []))} links on {url}")
                 
                 # Check for duplicates
                 content_hash = self._generate_content_hash(page_data['content'])
@@ -675,11 +711,18 @@ class UniversalScraper(BaseScraper):
                     self.stats['successful_pages'] += 1
                     self._processing.remove(url)
                 
-                # Add new URLs to queue
-                new_urls = page_data.get('links', [])
-                for new_url in new_urls:
-                    if new_url not in self._visited and new_url not in self._processing:
-                        self._url_queue.put(new_url)
+                # Add new URLs to queue (only if we haven't reached the limit)
+                with self._lock:
+                    if len(self._data) < self.max_pages:
+                        new_urls = page_data.get('links', [])
+                        added_count = 0
+                        for new_url in new_urls:
+                            if new_url not in self._visited and new_url not in self._processing:
+                                self._url_queue.put(new_url)
+                                added_count += 1
+                        logger.info(f"Worker {worker_id} added {added_count} new URLs to queue from {url}")
+                    else:
+                        logger.info(f"Worker {worker_id} reached page limit, not adding more URLs")
                 
                 # Mark task as done
                 self._url_queue.task_done()
@@ -732,10 +775,43 @@ class UniversalScraper(BaseScraper):
             queue_size = self._url_queue.qsize()
             data_size = len(self._data)
             
-            # Report progress every 10 seconds
-            if current_time - last_report_time >= 10:
+            # Calculate progress percentage
+            progress = min(100.0, (data_size / self.max_pages) * 100) if self.max_pages > 0 else 0.0
+            
+            # Report progress every 2 seconds and call progress callback
+            if current_time - last_report_time >= 2:
                 logger.info(f"Progress: {data_size} pages scraped, {queue_size} URLs in queue, {len(self._processing)} processing")
                 last_report_time = current_time
+                
+                        # Call progress callback if provided
+                if self.progress_callback:
+                    try:
+                        # Calculate current page being processed
+                        current_page_info = "Initializing..."
+                        if data_size > 0:
+                            current_page_info = f"Processing page {data_size + 1}"
+                        elif queue_size > 0:
+                            current_page_info = "Discovering pages..."
+                        elif len(self._processing) > 0:
+                            current_page_info = "Processing current page..."
+                        
+                        # Create progress message
+                        if data_size >= self.max_pages:
+                            progress_message = f"Reached page limit ({self.max_pages} pages)"
+                        elif data_size == 0 and queue_size == 0 and len(self._processing) == 0:
+                            progress_message = "No pages found or connection issues"
+                        else:
+                            progress_message = f"Scraped {data_size} pages, {queue_size} in queue, {len(self._processing)} processing"
+                        
+                        self.progress_callback({
+                            'progress': progress,
+                            'pages_scraped': data_size,
+                            'total_pages': self.max_pages,
+                            'current_page': current_page_info,
+                            'message': progress_message
+                        })
+                    except Exception as e:
+                        logger.error(f"Error in progress callback: {e}")
             
             # Check if we should stop
             if data_size >= self.max_pages:
@@ -744,10 +820,14 @@ class UniversalScraper(BaseScraper):
             
             # Check if queue is empty and no workers are processing
             if queue_size == 0 and len(self._processing) == 0:
-                logger.info("Queue empty and no workers processing, stopping")
-                break
+                # Wait a bit more to see if any workers are still discovering URLs
+                time.sleep(3)
+                queue_size = self._url_queue.qsize()
+                if queue_size == 0 and len(self._processing) == 0:
+                    logger.info("Queue empty and no workers processing after wait, stopping")
+                    break
             
-            time.sleep(2)
+            time.sleep(1)
         
         # Stop all workers
         logger.info("Stopping all workers...")
@@ -783,9 +863,20 @@ class UniversalScraper(BaseScraper):
         # Cleanup Playwright browsers
         for worker_id, browser in self._playwright_browsers.items():
             try:
-                asyncio.run(browser.close())
-            except:
-                pass
+                # Create a new event loop for cleanup if needed
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # If loop is running, schedule the cleanup
+                        loop.create_task(browser.close())
+                    else:
+                        # If loop is not running, run it
+                        asyncio.run(browser.close())
+                except RuntimeError:
+                    # If no event loop exists, create one
+                    asyncio.run(browser.close())
+            except Exception as e:
+                logger.warning(f"Error closing Playwright browser for worker {worker_id}: {e}")
         self._playwright_browsers.clear()
     
     def parse_page(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
