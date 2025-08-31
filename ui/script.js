@@ -1097,6 +1097,30 @@ class ScrapeJETUI {
       }, 300);
     }, 5000);
   }
+
+  // Get API base URL based on environment
+  getApiBaseUrl() {
+    // Check if we're running in Docker or have a specific API URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const apiUrl = urlParams.get('api_url');
+    
+    if (apiUrl) {
+      return apiUrl;
+    }
+    
+    // Check if we're running on a different port (Docker scenario)
+    const currentHost = window.location.hostname;
+    const currentPort = window.location.port;
+    
+    // If UI is running on port 8080, API is likely on port 8000
+    if (currentPort === '8080') {
+      return `http://${currentHost}:8000`;
+    }
+    
+    // For demo UI, default to localhost:8000
+    // This works for both local development and Docker
+    return 'http://localhost:8000';
+  }
 }
 
 // Initialize the UI when the page loads

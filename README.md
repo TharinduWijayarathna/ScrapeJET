@@ -14,7 +14,9 @@ A powerful web scraper with RAG (Retrieval-Augmented Generation) capabilities fo
 
 ## Quick Setup
 
-### 1. Environment Configuration
+### Option 1: Docker Installation (Recommended)
+
+#### 1. Environment Configuration
 
 Create a `.env` file:
 
@@ -40,7 +42,67 @@ DEFAULT_LLM_PROVIDER=openai
 DEFAULT_OPENAI_MODEL=gpt-3.5-turbo
 ```
 
-### 2. Installation
+#### 2. Build and Run with Docker
+
+```bash
+# Build the Docker image
+docker build -t scrapejet .
+
+# Run with docker-compose (recommended)
+docker-compose up -d
+
+# Or run directly with Docker
+docker run -d \
+  --name scrapejet \
+  -p 8000:8000 \
+  -p 8080:8080 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  scrapejet
+```
+
+#### 3. Access the Application
+
+- **API Server**: http://localhost:8000
+- **Demo UI**: http://localhost:8080
+- **Health Check**: http://localhost:8000/health
+
+#### 4. Start Demo UI Server (if running separately)
+
+```bash
+# Start the demo UI server to see the scraper in action
+python ui/serve_ui.py
+```
+
+### Option 2: Local Installation
+
+#### 1. Environment Configuration
+
+Create a `.env` file:
+
+```bash
+# Scraping Configuration
+MAX_PAGES=100
+MAX_WORKERS=5
+REQUEST_TIMEOUT=30
+RETRY_COUNT=3
+REQUEST_DELAY=1.0
+
+# Advanced Features
+USE_SELENIUM=true
+USE_PLAYWRIGHT=true
+SCROLL_PAGES=true
+WAIT_FOR_JS=5
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# LLM Configuration
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_OPENAI_MODEL=gpt-3.5-turbo
+```
+
+#### 2. Installation
 
 ```bash
 # Create virtual environment
@@ -51,11 +113,29 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Start API Server
+#### 3. Start API Server
 
 ```bash
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+#### 4. Start Demo UI Server
+
+```bash
+# Start the demo UI to see how the scraper works graphically
+python ui/serve_ui.py
+```
+
+## Accessing the Demo
+
+1. **Docker**: http://localhost:8080
+2. **Local**: http://localhost:8080 (after running `python ui/serve_ui.py`)
+
+The demo UI connects to the API server on port 8000 and provides a user-friendly way to:
+- Start scraping jobs on any website
+- Monitor scraping progress in real-time
+- Query scraped data using natural language
+- Explore scraped content and metadata
 
 ## API Usage
 
@@ -140,6 +220,44 @@ python src/cli.py process data/raw/scraped_example_com_1234567890.json
 python src/cli.py analyze data/raw/processed_example_com_1234567890.json
 ```
 
+## Docker Commands
+
+### Build and Run
+```bash
+# Build the image
+docker build -t scrapejet .
+
+# Run with docker-compose
+docker-compose up -d
+
+# Run directly with Docker
+docker run -d --name scrapejet -p 8000:8000 -p 8080:8080 --env-file .env scrapejet
+```
+
+### Management
+```bash
+# View logs
+docker-compose logs -f
+
+# Stop the service
+docker-compose down
+
+# Restart the service
+docker-compose restart
+
+# Update and rebuild
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+### Data Persistence
+```bash
+# The data directory is mounted as a volume
+# Your scraped data will persist between container restarts
+ls -la data/
+```
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -169,6 +287,11 @@ src/
 │   ├── vector_store.py      # Vector store implementation
 │   └── llm_interface.py     # LLM interface
 └── cli.py                   # Command-line interface
+
+ui/
+├── index.html              # Demo UI interface
+├── script.js               # Demo UI JavaScript
+└── serve_ui.py             # Demo UI server
 
 data/
 ├── raw/                     # Raw scraped data
