@@ -1,16 +1,6 @@
-# ScrapeJET - Web Scraper with RAG
+# Scraper - Web Scraper with RAG
 
 A powerful web scraper with RAG (Retrieval-Augmented Generation) capabilities for extracting and querying website data using Selenium, Playwright, and AI models.
-
-## Features
-
-- Advanced web scraping with Selenium, Playwright, and Requests
-- Intelligent data processing and product extraction
-- Queue-based multi-threaded scraping
-- JavaScript support for dynamic content
-- Smart deduplication and content cleaning
-- RAG integration for AI-powered data querying
-- REST API with comprehensive endpoints
 
 ## Quick Setup
 
@@ -46,19 +36,19 @@ DEFAULT_OPENAI_MODEL=gpt-3.5-turbo
 
 ```bash
 # Build the Docker image
-docker build -t scrapejet .
+docker build -t Scraper .
 
 # Run with docker-compose (recommended)
 docker-compose up -d
 
 # Or run directly with Docker
 docker run -d \
-  --name scrapejet \
+  --name Scraper \
   -p 8000:8000 \
   -p 8080:8080 \
   --env-file .env \
   -v $(pwd)/data:/app/data \
-  scrapejet
+  Scraper
 ```
 
 #### 3. Access the Application
@@ -130,12 +120,6 @@ python ui/serve_ui.py
 
 1. **Docker**: http://localhost:8080
 2. **Local**: http://localhost:8080 (after running `python ui/serve_ui.py`)
-
-The demo UI connects to the API server on port 8000 and provides a user-friendly way to:
-- Start scraping jobs on any website
-- Monitor scraping progress in real-time
-- Query scraped data using natural language
-- Explore scraped content and metadata
 
 ## API Usage
 
@@ -225,13 +209,13 @@ python src/cli.py analyze data/raw/processed_example_com_1234567890.json
 ### Build and Run
 ```bash
 # Build the image
-docker build -t scrapejet .
+docker build -t Scraper .
 
 # Run with docker-compose
 docker-compose up -d
 
 # Run directly with Docker
-docker run -d --name scrapejet -p 8000:8000 -p 8080:8080 --env-file .env scrapejet
+docker run -d --name Scraper -p 8000:8000 -p 8080:8080 --env-file .env Scraper
 ```
 
 ### Management
@@ -272,32 +256,3 @@ ls -la data/
 | `SCROLL_PAGES` | true | Scroll pages to load lazy content |
 | `WAIT_FOR_JS` | 5 | Wait time for JavaScript to load (seconds) |
 | `OPENAI_API_KEY` | - | Your OpenAI API key |
-
-## Project Structure
-
-```
-src/
-├── scraper/
-│   ├── universal_scraper.py  # Main scraper
-│   ├── base_scraper.py       # Base scraper class
-│   └── data_processor.py     # Data processing
-├── api/
-│   └── main.py              # FastAPI application
-├── rag/
-│   ├── vector_store.py      # Vector store implementation
-│   └── llm_interface.py     # LLM interface
-└── cli.py                   # Command-line interface
-
-ui/
-├── index.html              # Demo UI interface
-├── script.js               # Demo UI JavaScript
-└── serve_ui.py             # Demo UI server
-
-data/
-├── raw/                     # Raw scraped data
-└── vectorstore/             # Vector store data
-```
-
-## License
-
-MIT License

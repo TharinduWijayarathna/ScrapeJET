@@ -137,16 +137,16 @@ def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str]
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
-    logger.info("Starting ScrapeJET API...")
+    logger.info("Starting Scraper API...")
     initialize_rag_system()
     yield
     # Shutdown
-    logger.info("Shutting down ScrapeJET API...")
+    logger.info("Shutting down Scraper API...")
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="ScrapeJET API",
+    title="Scraper API",
     description="Advanced Web Scraper with RAG capabilities",
     version="2.0.0",
     lifespan=lifespan

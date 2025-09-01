@@ -1,5 +1,5 @@
 """
-RAG (Retrieval-Augmented Generation) module for ScrapeJET
+RAG (Retrieval-Augmented Generation) module for Scraper
 """
 
 from .vector_store import VectorStore

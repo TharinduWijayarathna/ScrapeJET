@@ -1,5 +1,5 @@
 """
-Scraper module for ScrapeJET
+Scraper module for Scraper
 """
 
 from .universal_scraper import UniversalScraper

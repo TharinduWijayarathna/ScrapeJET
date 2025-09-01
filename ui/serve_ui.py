@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo UI Server for ScrapeJET - Serves the graphical demo interface
+Demo UI Server for Scraper - Serves the graphical demo interface
 This allows users to visually see how the web scraper works
 """
 
@@ -40,7 +40,7 @@ def find_free_port(start_port=8080):
     raise RuntimeError(f"No free ports found in range {start_port}-{start_port + 100}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Serve ScrapeJET Demo UI')
+    parser = argparse.ArgumentParser(description='Serve Scraper Demo UI')
     parser.add_argument('--port', type=int, default=8080, help='Port to serve on (default: 8080)')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
     parser.add_argument('--directory', default='.', help='Directory to serve (default: current directory)')
@@ -66,7 +66,7 @@ def main():
         port = find_free_port(port + 1)
         server = HTTPServer((args.host, port), CORSHTTPRequestHandler)
     
-    logger.info(f"🚀 ScrapeJET Demo UI Server starting...")
+    logger.info(f"🚀 Scraper Demo UI Server starting...")
     logger.info(f"📁 Serving demo UI from: {ui_dir}")
     logger.info(f"🌐 Demo URL: http://{args.host}:{port}")
     logger.info(f"📄 Main demo file: http://{args.host}:{port}/index.html")

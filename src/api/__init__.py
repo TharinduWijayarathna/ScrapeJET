@@ -1,5 +1,5 @@
 """
-API module for ScrapeJET
+API module for Scraper
 """
 
 from .main import app

@@ -1,7 +1,7 @@
-// ScrapeJET Web Scraper UI - JavaScript
+// Scraper Web Scraper UI - JavaScript
 // Advanced web scraper interface with real-time progress tracking
 
-class ScrapeJETUI {
+class ScraperUI {
   constructor() {
     this.apiBaseUrl = "http://localhost:8000";
     this.currentScrapeId = null;
@@ -167,14 +167,14 @@ class ScrapeJETUI {
 
       if (response.ok) {
         this.updateStatus("online", "API Online");
-        this.showToast("success", "Connected", "Successfully connected to ScrapeJET API");
+        this.showToast("success", "Connected", "Successfully connected to Scraper API");
       } else {
         throw new Error("API not healthy");
       }
     } catch (error) {
       console.error("API Status Check Failed:", error);
       this.updateStatus("offline", "API Offline");
-      this.showToast("error", "Connection Failed", "Cannot connect to ScrapeJET API");
+      this.showToast("error", "Connection Failed", "Cannot connect to Scraper API");
     }
   }
 
@@ -1124,4 +1124,4 @@ class ScrapeJETUI {
 }
 
 // Initialize the UI when the page loads
-const ui = new ScrapeJETUI();
+const ui = new ScraperUI();
