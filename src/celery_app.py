@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Redis configuration
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+# Redis configuration with Docker-friendly defaults
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)

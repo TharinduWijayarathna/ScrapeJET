@@ -116,10 +116,10 @@ class SitesResponse(BaseModel):
 rag_system = None
 current_data = []
 
-# Redis connection for job status caching
+# Redis connection for job status caching with Docker-friendly defaults
 try:
     redis_client = redis.Redis(
-        host=os.getenv("REDIS_HOST", "localhost"),
+        host=os.getenv("REDIS_HOST", "redis"),
         port=int(os.getenv("REDIS_PORT", "6379")),
         db=int(os.getenv("REDIS_DB", "0")),
         decode_responses=True
