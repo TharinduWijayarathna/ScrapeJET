@@ -39,9 +39,8 @@ aiofiles==24.1.0
 boto3==1.35.67
 
 # Queue Management and Background Tasks
-redis==5.0.1
+redis==4.6.0
 celery==5.3.4
-celery[redis]==5.3.4
 
 # Additional dependencies
 urllib3==2.2.3
