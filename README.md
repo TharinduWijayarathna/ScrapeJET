@@ -8,25 +8,29 @@ A powerful web scraper with RAG (Retrieval-Augmented Generation) capabilities fo
 
 #### 1. Environment Configuration
 
-**Quick Setup:**
+Create a `.env` file:
+
 ```bash
-# Copy the environment template
-cp .env.template .env
+# Scraping Configuration
+MAX_PAGES=100
+MAX_WORKERS=5
+REQUEST_TIMEOUT=30
+RETRY_COUNT=3
+REQUEST_DELAY=1.0
 
-# Edit the .env file and set your OpenAI API key
-nano .env  # or use your preferred editor
+# Advanced Features
+USE_SELENIUM=true
+USE_PLAYWRIGHT=true
+SCROLL_PAGES=true
+WAIT_FOR_JS=5
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# LLM Configuration
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_OPENAI_MODEL=gpt-3.5-turbo
 ```
-
-**Required: Set your OpenAI API key in `.env`:**
-```bash
-OPENAI_API_KEY=sk-your-actual-openai-api-key-here
-```
-
-> 🔑 **Get your OpenAI API key from:** [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-
-**All other settings have sensible defaults for Docker deployment.**
-
-For advanced configuration, see `.env.example` for all available options.
 
 #### 2. Build and Run with Docker
 
