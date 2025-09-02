@@ -11,13 +11,15 @@ import asyncio
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, HttpUrl
 from loguru import logger
 import uvicorn
 from dotenv import load_dotenv
+from celery.result import AsyncResult
+import redis
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,6 +35,8 @@ sys.path.insert(0, str(project_root))
 from src.scraper.universal_scraper import UniversalScraper
 from src.rag.vector_store import VectorStore
 from src.rag.llm_interface import OpenAIInterface, BedrockInterface, RAGSystem
+from src.celery_app import celery_app
+from src.tasks import scrape_website_task, scrape_business_task, query_business_insights
 
 
 # Pydantic models
@@ -40,6 +44,24 @@ class ScrapeRequest(BaseModel):
     url: str
     expected_pages: int = 100
     output_format: str = "json"
+    priority: int = 5  # Task priority (0-9, higher is more priority)
+
+
+class BusinessScrapeRequest(BaseModel):
+    url: str
+    pages_to_scrape: Optional[List[str]] = None
+    priority: int = 5
+
+
+class BusinessInsightRequest(BaseModel):
+    site_name: str
+    questions: List[str] = [
+        "What does this company do?",
+        "What are their main products or services?", 
+        "How can I contact them?",
+        "Where are they located?",
+        "What is their company mission or values?"
+    ]
 
 
 class QueryRequest(BaseModel):
@@ -93,7 +115,20 @@ class SitesResponse(BaseModel):
 # Global variables
 rag_system = None
 current_data = []
-scraping_jobs = {}  # Store active scraping jobs
+
+# Redis connection for job status caching
+try:
+    redis_client = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        db=int(os.getenv("REDIS_DB", "0")),
+        decode_responses=True
+    )
+    redis_client.ping()
+    logger.info("Redis connection established")
+except Exception as e:
+    logger.warning(f"Redis connection failed: {e}")
+    redis_client = None
 
 
 def initialize_rag_system(llm_provider: str = "openai", llm_model: Optional[str] = None):
@@ -164,113 +199,99 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "rag_system": rag_system is not None}
-
-
-async def run_scraping_job(job_id: str, url: str, expected_pages: int, output_format: str):
-    """Background task to run scraping job"""
+    """Health check endpoint with system status"""
+    
+    # Check Celery worker status
+    celery_status = "unknown"
+    active_workers = 0
     try:
-        # Initialize job status
-        scraping_jobs[job_id] = {
-            "status": "running",
-            "progress": 0.0,
-            "pages_scraped": 0,
-            "total_pages": expected_pages,
-            "current_page": "Initializing...",
-            "start_time": time.time(),
-            "message": "Starting scraper...",
-            "data": [],
-            "files": {},
-            "stats": {}
-        }
-
-        logger.info(f"Starting scraping job {job_id} for {url}")
-
-        # Progress callback function
-        def update_progress(progress_data):
-            scraping_jobs[job_id].update({
-                "progress": progress_data["progress"],
-                "pages_scraped": progress_data["pages_scraped"],
-                "current_page": progress_data["current_page"],
-                "message": progress_data["message"]
-            })
-
-        # Initialize scraper with expected pages and progress callback
-        scraper = UniversalScraper(base_url=url, expected_pages=expected_pages, progress_callback=update_progress)
-        
-        # Update job status
-        scraping_jobs[job_id]["message"] = "Scraper initialized, starting to scrape..."
-
-        # Scrape the site
-        data = scraper.scrape_site()
-        
-        # Update job status with final data
-        scraping_jobs[job_id]["pages_scraped"] = len(data)
-        scraping_jobs[job_id]["total_pages"] = expected_pages
-        scraping_jobs[job_id]["progress"] = 100.0
-        scraping_jobs[job_id]["current_page"] = "Completed"
-        scraping_jobs[job_id]["message"] = f"Successfully scraped {len(data)} pages from {url}"
-        scraping_jobs[job_id]["data"] = data
-
-        # Save data
-        saved_files = scraper.scrape_and_save(output_format)
-        scraping_jobs[job_id]["files"] = saved_files
-
-        # Get stats
-        stats = scraper.get_optimization_stats()
-        scraping_jobs[job_id]["stats"] = stats
-
-        # Add to RAG system if available
-        if rag_system and data:
-            scraping_jobs[job_id]["message"] = "Adding data to RAG system..."
-            try:
-                # Check if add_documents is async
-                if hasattr(rag_system, 'add_documents') and asyncio.iscoroutinefunction(rag_system.add_documents):
-                    await rag_system.add_documents(data)
-                else:
-                    rag_system.add_documents(data)
-            except Exception as e:
-                logger.error(f"Error adding documents to RAG: {e}")
-                # Continue even if RAG fails
-
-        # Update global data
-        global current_data
-        current_data.extend(data)
-
-        # Mark job as completed
-        scraping_jobs[job_id]["status"] = "completed"
-        scraping_jobs[job_id]["message"] = f"Successfully scraped {len(data)} pages from {url}"
-
-        logger.info(f"Scraping job {job_id} completed successfully")
-
+        inspect = celery_app.control.inspect()
+        stats = inspect.stats()
+        if stats:
+            active_workers = len(stats)
+            celery_status = "healthy"
+        else:
+            celery_status = "no_workers"
     except Exception as e:
-        logger.error(f"Error in scraping job {job_id}: {e}")
-        scraping_jobs[job_id]["status"] = "failed"
-        scraping_jobs[job_id]["message"] = f"Scraping failed: {str(e)}"
+        celery_status = f"error: {str(e)}"
+    
+    # Check Redis status
+    redis_status = "healthy" if redis_client else "unavailable"
+    if redis_client:
+        try:
+            redis_client.ping()
+        except:
+            redis_status = "connection_failed"
+    
+    return {
+        "status": "healthy",
+        "rag_system": rag_system is not None,
+        "celery_workers": celery_status,
+        "active_workers": active_workers,
+        "redis": redis_status,
+        "queue_system": "celery+redis"
+    }
+
+
+def get_task_progress(task_id: str) -> Dict[str, Any]:
+    """Get task progress from Celery result backend"""
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        
+        if result.state == 'PENDING':
+            return {
+                "status": "pending",
+                "progress": 0.0,
+                "pages_scraped": 0,
+                "total_pages": 0,
+                "current_page": "Waiting to start...",
+                "message": "Task is waiting in queue"
+            }
+        elif result.state == 'PROGRESS':
+            return result.info
+        elif result.state == 'SUCCESS':
+            return {
+                "status": "completed",
+                "progress": 100.0,
+                "result": result.result
+            }
+        elif result.state == 'FAILURE':
+            return {
+                "status": "failed",
+                "progress": 0.0,
+                "error": str(result.info)
+            }
+        else:
+            return {
+                "status": result.state.lower(),
+                "progress": 0.0,
+                "message": f"Task state: {result.state}"
+            }
+    except Exception as e:
+        logger.error(f"Error getting task progress: {e}")
+        return {
+            "status": "error",
+            "progress": 0.0,
+            "error": str(e)
+        }
 
 
 @app.post("/scrape", response_model=ScrapeResponse)
-async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTasks):
-    """Start scraping a website"""
+async def scrape_website(request: ScrapeRequest):
+    """Start scraping a website using Celery"""
     try:
         logger.info(f"Starting scrape of {request.url} with {request.expected_pages} expected pages")
 
-        # Generate job ID
-        job_id = str(uuid.uuid4())
-        
-        # Add background task
-        background_tasks.add_task(
-            run_scraping_job, 
-            job_id, 
-            request.url, 
-            request.expected_pages, 
-            request.output_format
+        # Start Celery task
+        task = scrape_website_task.apply_async(
+            args=[request.url, request.expected_pages, request.output_format],
+            priority=request.priority,
+            queue="scraping"
         )
 
         return ScrapeResponse(
             message=f"Scraping job started for {request.url}",
-            job_id=job_id,
+            job_id=task.id,
             status="started"
         )
 
@@ -282,56 +303,194 @@ async def scrape_website(request: ScrapeRequest, background_tasks: BackgroundTas
 @app.get("/scrape/{job_id}/progress", response_model=ScrapeProgressResponse)
 async def get_scrape_progress(job_id: str):
     """Get real-time progress of a scraping job"""
-    if job_id not in scraping_jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = scraping_jobs[job_id]
-    time_elapsed = time.time() - job.get("start_time", time.time())
-    
-    return ScrapeProgressResponse(
-        job_id=job_id,
-        status=job["status"],
-        progress=job["progress"],
-        pages_scraped=job["pages_scraped"],
-        total_pages=job.get("total_pages", job["pages_scraped"]),
-        current_page=job["current_page"],
-        time_elapsed=time_elapsed,
-        message=job["message"]
-    )
+    try:
+        progress_data = get_task_progress(job_id)
+        
+        if progress_data["status"] == "error":
+            raise HTTPException(status_code=404, detail="Job not found or error occurred")
+        
+        # Calculate time elapsed
+        time_elapsed = 0.0
+        if "start_time" in progress_data:
+            time_elapsed = time.time() - progress_data["start_time"]
+        
+        return ScrapeProgressResponse(
+            job_id=job_id,
+            status=progress_data.get("status", "unknown"),
+            progress=progress_data.get("progress", 0.0),
+            pages_scraped=progress_data.get("pages_scraped", 0),
+            total_pages=progress_data.get("total_pages", 0),
+            current_page=progress_data.get("current_page", "Unknown"),
+            time_elapsed=time_elapsed,
+            message=progress_data.get("message", "No status message")
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting progress for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get job progress: {str(e)}")
 
 
 @app.get("/scrape/{job_id}/result", response_model=ScrapeResultResponse)
 async def get_scrape_result(job_id: str):
     """Get the final result of a completed scraping job"""
-    if job_id not in scraping_jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
+    try:
+        result = AsyncResult(job_id, app=celery_app)
+        
+        if result.state == 'PENDING':
+            raise HTTPException(status_code=400, detail="Job is still pending")
+        elif result.state == 'PROGRESS':
+            raise HTTPException(status_code=400, detail="Job is still in progress")
+        elif result.state == 'FAILURE':
+            raise HTTPException(status_code=500, detail=f"Job failed: {result.info}")
+        elif result.state == 'SUCCESS':
+            job_result = result.result
+            return ScrapeResultResponse(
+                message=job_result.get("message", "Job completed"),
+                files=job_result.get("files", {}),
+                total_pages=job_result.get("pages_scraped", 0),
+                stats=job_result.get("stats", {})
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown job state: {result.state}")
     
-    job = scraping_jobs[job_id]
-    
-    if job["status"] != "completed":
-        raise HTTPException(status_code=400, detail=f"Job is not completed. Status: {job['status']}")
-    
-    return ScrapeResultResponse(
-        message=job["message"],
-        files=job["files"],
-        total_pages=job["pages_scraped"],
-        stats=job["stats"]
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting result for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get job result: {str(e)}")
 
 
 @app.delete("/scrape/{job_id}")
 async def cancel_scrape_job(job_id: str):
     """Cancel a running scraping job"""
-    if job_id not in scraping_jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
+    try:
+        # Revoke the Celery task
+        celery_app.control.revoke(job_id, terminate=True)
+        
+        # Check if task was successfully revoked
+        result = AsyncResult(job_id, app=celery_app)
+        if result.state in ['REVOKED', 'FAILURE']:
+            return {"message": "Job cancelled successfully", "job_id": job_id}
+        else:
+            return {"message": "Job cancellation requested", "job_id": job_id, "note": "Task may still be running"}
+            
+    except Exception as e:
+        logger.error(f"Error cancelling job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
+
+
+@app.post("/scrape/business", response_model=ScrapeResponse)
+async def scrape_business_pages(request: BusinessScrapeRequest):
+    """Scrape business-specific pages (about, contact, terms, etc.)"""
+    try:
+        logger.info(f"Starting business scrape of {request.url}")
+
+        # Start Celery task for business scraping
+        task = scrape_business_task.apply_async(
+            args=[request.url, request.pages_to_scrape],
+            priority=request.priority,
+            queue="business"
+        )
+
+        return ScrapeResponse(
+            message=f"Business scraping job started for {request.url}",
+            job_id=task.id,
+            status="started"
+        )
+
+    except Exception as e:
+        logger.error(f"Error starting business scrape for {request.url}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start business scraping: {str(e)}")
+
+
+@app.post("/business/insights")
+async def get_business_insights(request: BusinessInsightRequest):
+    """Get business insights for a specific site using RAG"""
+    try:
+        logger.info(f"Getting business insights for {request.site_name}")
+
+        # Start Celery task for business insights
+        task = query_business_insights.apply_async(
+            args=[request.site_name, request.questions],
+            queue="rag"
+        )
+
+        return {
+            "message": f"Business insights query started for {request.site_name}",
+            "task_id": task.id,
+            "status": "started"
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting business insights for {request.site_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get business insights: {str(e)}")
+
+
+@app.get("/business/insights/{task_id}")
+async def get_business_insights_result(task_id: str):
+    """Get the result of a business insights query"""
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+        
+        if result.state == 'PENDING':
+            return {"status": "pending", "message": "Query is waiting in queue"}
+        elif result.state == 'PROGRESS':
+            return {"status": "processing", "message": "Query is being processed"}
+        elif result.state == 'FAILURE':
+            raise HTTPException(status_code=500, detail=f"Query failed: {result.info}")
+        elif result.state == 'SUCCESS':
+            return {
+                "status": "completed",
+                "result": result.result
+            }
+        else:
+            return {"status": result.state.lower(), "message": f"Query state: {result.state}"}
     
-    job = scraping_jobs[job_id]
-    if job["status"] == "running":
-        job["status"] = "cancelled"
-        job["message"] = "Job cancelled by user"
-        return {"message": "Job cancelled successfully"}
-    else:
-        raise HTTPException(status_code=400, detail="Job is not running")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting business insights result for {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get insights result: {str(e)}")
+
+
+@app.get("/queue/status")
+async def get_queue_status():
+    """Get current queue status and worker information"""
+    try:
+        inspect = celery_app.control.inspect()
+        
+        # Get active tasks
+        active_tasks = inspect.active() or {}
+        
+        # Get scheduled tasks
+        scheduled_tasks = inspect.scheduled() or {}
+        
+        # Get queue lengths
+        queue_lengths = {}
+        try:
+            if redis_client:
+                for queue_name in ['default', 'scraping', 'business', 'rag']:
+                    length = redis_client.llen(f"celery:{queue_name}")
+                    queue_lengths[queue_name] = length
+        except Exception as e:
+            logger.warning(f"Could not get queue lengths: {e}")
+        
+        # Get worker stats
+        worker_stats = inspect.stats() or {}
+        
+        return {
+            "active_tasks": active_tasks,
+            "scheduled_tasks": scheduled_tasks,
+            "queue_lengths": queue_lengths,
+            "worker_stats": worker_stats,
+            "total_workers": len(worker_stats),
+            "system_status": "healthy" if worker_stats else "no_workers"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get queue status: {str(e)}")
 
 
 @app.post("/query", response_model=QueryResponse)

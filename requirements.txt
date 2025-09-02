@@ -38,6 +38,11 @@ aiofiles==24.1.0
 # AWS Bedrock (alternative to OpenAI)
 boto3==1.35.67
 
+# Queue Management and Background Tasks
+redis==5.0.1
+celery==5.3.4
+celery[redis]==5.3.4
+
 # Additional dependencies
 urllib3==2.2.3
 certifi==2025.8.3

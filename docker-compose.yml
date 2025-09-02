@@ -1,8 +1,24 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - scraper-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   web-scraper:
     build: .
     ports:
-      - "80:8000"
+      - "8000:8000"
     volumes:
       - scraper_data:/app/data
     environment:
@@ -18,17 +34,22 @@ services:
       - ENVIRONMENT=production
       - HF_HUB_DISABLE_TELEMETRY=1
       - SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     env_file:
       - .env
     networks:
       - scraper-network
     restart: unless-stopped
+    depends_on:
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -43,8 +64,141 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Celery Worker for General Scraping Tasks
+  worker-scraping:
+    build: .
+    command: python worker.py
+    volumes:
+      - scraper_data:/app/data
+    environment:
+      - PYTHONPATH=/app
+      - CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - MAX_PAGES=${MAX_PAGES:-50}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - HF_HUB_DISABLE_TELEMETRY=1
+      - SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - WORKER_NAME=scraping-worker@%h
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Celery Worker for Business Scraping Tasks
+  worker-business:
+    build: .
+    command: python worker.py
+    volumes:
+      - scraper_data:/app/data
+    environment:
+      - PYTHONPATH=/app
+      - CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - MAX_PAGES=${MAX_PAGES:-20}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - HF_HUB_DISABLE_TELEMETRY=1
+      - SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - WORKER_NAME=business-worker@%h
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.5'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Celery Worker for RAG Processing
+  worker-rag:
+    build: .
+    command: python worker.py
+    volumes:
+      - scraper_data:/app/data
+    environment:
+      - PYTHONPATH=/app
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - HF_HUB_DISABLE_TELEMETRY=1
+      - SENTENCE_TRANSFORMERS_HOME=/tmp/sentence_transformers
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - WORKER_NAME=rag-worker@%h
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+
 volumes:
   scraper_data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:
